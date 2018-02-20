@@ -67,8 +67,7 @@ std::string Checker::option_help() const {
 "                          set to 'train_file' + '.model'. If we set this value to 'none', the xLearn will \n"
 "                          not dump the model checkpoint after training. \n"
 "  -t <txt_model_file>  :  Path of the txt model checkpoint file. On default, this option is empty \n"
-"                          and xLearn will not dump the txt model. For now, only the bias and linear term \n"
-"                          will dump to the txt model checkpoint file. \n"
+"                          and xLearn will not dump the txt model. \n"
 "                                                                             \n"
 "  -l <log_file>        :  Path of the log file. Using '/tmp/xlearn_log/' by default. \n"
 "                                                                                       \n"
@@ -84,6 +83,14 @@ std::string Checker::option_help() const {
 "  -b <lambda_for_regu> :  Lambda for L2 regular. Using 0.00002 by default. We can disable the \n"
 "                          regular term by setting this value to 0.0 \n"
 "                                                                      \n"
+"  -alpha               :  Used by ftrl.                                \n"
+"                                                                        \n"
+"  -beta                :  Used by ftrl.                                 \n"
+"                                                                        \n"
+"  -lambda_1            :  Used by ftrl.                                 \n"
+"                                                                       \n"
+"  -lambda_2            :  Used by ftrl.                                \n"
+"                                                                      \n"
 "  -u <model_scale>     :  Hyper parameter used for initialize model parameters. \n"
 "                          Using 0.66 by default. \n"
 "                                                                                  \n"
@@ -92,7 +99,7 @@ std::string Checker::option_help() const {
 "                                                                                       \n"
 "  -f <fold_number>     :  Number of folds for cross-validation. Using 5 by default.      \n"
 "                                                                                         \n"
-"  -nthread <thread number> :  Number of thread for multi-thread training                 \n"
+"  -nthread <thread number> :  Number of thread for multi-thread training.                \n"
 "                                                                                      \n"
 "  --disk               :  Open on-disk training for large-scale machine learning problems. \n"
 "                                                                    \n"
@@ -111,13 +118,6 @@ std::string Checker::option_help() const {
 "                                                                  \n"
 "  --quiet              :  Don't print any evaluation information during the training and \n"
 "                          just train the model quietly. \n"
-"  -alpha               :  Used by ftrl. \n"
-"                                        \n"
-"  -beta                :  Used by ftrl. \n"
-"                                        \n"
-"  -lambda_1            :  Used by ftrl. \n"
-"                                        \n"
-"  -lambda_2            :  Used by ftrl. \n"
 "----------------------------------------------------------------------------------------------\n"
     );
   } else {
@@ -135,6 +135,10 @@ std::string Checker::option_help() const {
 "  -nthread <thread number> :  Number of thread for multi-thread learning. \n"
 "                                                                             \n"
 "  -l <log_file_path>   :  Path of the log file. Using '/tmp/xlearn_log' by default. \n"
+"                                                            \n"
+"  --sign                   :  Converting output to 0 and 1. \n"
+"                                                               \n"
+"  --sigmoid                :  Converting output to 0~1 (problebility). \n"
 "----------------------------------------------------------------------------------------------\n"
     );
   }
@@ -691,7 +695,7 @@ void Checker::check_conflict_train(HyperParam& hyper_param) {
                      "in regression tasks. xLearn will ignore "
                      "this option.",
                      hyper_param.metric.c_str())
-        );
+      );
       hyper_param.metric = "none";
     }
   }

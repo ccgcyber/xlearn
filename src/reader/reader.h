@@ -171,6 +171,11 @@ class InmemReader : public Reader {
     }
   }
 
+  // Get data buffer
+  virtual inline DMatrix* GetMatrix() {
+    return &data_buf_;
+  }
+
  protected:
   /* Reader will load all the data 
   into this buffer */
@@ -253,6 +258,64 @@ class OndiskReader : public Reader {
 
  private:
   DISALLOW_COPY_AND_ASSIGN(OndiskReader);
+};
+
+//------------------------------------------------------------------------------
+// Copy DMatrix from some other data source, e.g., Python Pandas.
+// When we use the Python interface of xLearn, users often need to 
+// convert some other data object to a DMatrix data structure, and then
+// we can use CopyReader to initialize the Reader class. After that, the
+// CopyReader will act as the same with the InmemReader.
+//------------------------------------------------------------------------------
+class CopyReader : public Reader {
+ public:
+  // Constructor and Destructor
+  CopyReader() : pos_(0) { }
+  ~CopyReader() { }
+  
+  // We do nothing in this funtion
+  virtual void Initialize(const std::string& filename);
+
+  // Copy DMatrix from the other data source
+  virtual void CopyDMatrix(DMatrix* matrix);
+
+  // Sample data from the memory buffer.
+  virtual index_t Samples(DMatrix* &matrix);
+
+  // Return to the head of file
+  virtual void Reset();
+
+  // Free the memory of data matrix.
+  virtual void Clear() {
+    data_buf_.Release();
+  }
+
+  // If shuffle data ?
+  virtual inline void SetShuffle(bool shuffle) {
+    this->shuffle_ = shuffle;
+    if (shuffle_ && !order_.empty()) {
+      random_shuffle(order_.begin(), order_.end());
+    }
+  }
+
+  // Get data buffer
+  virtual inline DMatrix* GetMatrix() {
+    return &data_buf_;
+  }
+
+ protected:
+  /* Reader will load all the data 
+  into this buffer */
+  DMatrix data_buf_;
+  /* Number of record at each samplling */
+  index_t num_samples_;
+  /* Position for samplling */
+  index_t pos_;
+  /* For random shuffle */
+  std::vector<index_t> order_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(CopyReader);
 };
 
 //------------------------------------------------------------------------------

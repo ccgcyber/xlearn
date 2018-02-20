@@ -174,14 +174,15 @@ struct DMatrix {
   // Note that a typical alternative that forces a
   // reallocation is to use swap(), instead of using clear().
   void Release() {
-    row_length = 0;
     hash_value_1 = 0;
     hash_value_2 = 0;
     // Delete Y
     std::vector<real_t>().swap(Y);
     // Delete Node
     for (int i = 0; i < row_length; ++i) {
-      std::vector<Node>().swap(*row[i]);
+      if (row[i] != nullptr) {
+        std::vector<Node>().swap(*(row[i]));
+      }
     }
     // Delete SparseRow
     std::vector<SparseRow*>().swap(row);

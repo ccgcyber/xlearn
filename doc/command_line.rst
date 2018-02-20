@@ -81,8 +81,7 @@ Also, users can save the model in txt format by using ``-t`` option. For example
 
   ./xlearn_train ./small_train.txt -t model.txt
 
-After that, we get a new file called ``model.txt``, which stores the trained model in txt format.
-For now, xLearn only supports to save the bias and linear term in txt file. ::
+After that, we get a new file called ``model.txt``, which stores the trained model in txt format. ::
 
   head -n 5 ./model.txt
 
@@ -91,6 +90,9 @@ For now, xLearn only supports to save the bias and linear term in txt file. ::
   0
   0
   0
+
+For the linear and bias term, we store each parameter in each line. For FM and FFM, we store one 
+vector of the latent factor in each line.
 
 Users can also set ``-o`` option to specify the output file. For example: ::
 
