@@ -18,7 +18,7 @@ If you install xLearn Python package successfully, you will see ::
       >  <| |___|  __/ (_| | |  | | | |
      /_/\_\_____/\___|\__,_|_|  |_| |_|
 
-        xLearn   -- 0.20 Version --
+        xLearn   -- 0.30 Version --
   -------------------------------------------------------------------------
 
 Quick Start
@@ -370,7 +370,6 @@ following Python code multiple times, we may get different loss value at each ep
    param = {'task':'binary', 'lr':0.2, 'lambda':0.002} 
             
    ffm_model.fit(param, "./model.out") 
-
 
    The 1st time: 0.449056
    The 2nd time: 0.449302
