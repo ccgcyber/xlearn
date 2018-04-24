@@ -247,6 +247,9 @@ void Solver::init_train() {
       );
       exit(0);
     }
+    if (reader_[i]->Type().compare("on-disk") == 0) {
+      reader_[i]->SetBlockSize(hyper_param_.block_size);
+    }
     LOG(INFO) << "Init Reader: " << file_list[i];
   }
   /*********************************************************
@@ -468,6 +471,7 @@ void Solver::start_train_work() {
   int epoch = hyper_param_.num_epoch;
   bool early_stop = hyper_param_.early_stop &&
                    !hyper_param_.cross_validation;
+  int stop_window = hyper_param_.stop_window;
   bool quiet = hyper_param_.quiet &&
               !hyper_param_.cross_validation;
   bool save_model = true;
@@ -487,6 +491,7 @@ void Solver::start_train_work() {
                      loss_,
                      metric_,
                      early_stop,
+                     stop_window,
                      quiet);
   print_action("Start to train ...");
 /******************************************************************************
@@ -501,6 +506,7 @@ void Solver::start_train_work() {
  ******************************************************************************/
   else {
     trainer.Train();
+    // Save binary model
     if (save_model) {
       Timer timer;
       timer.tic();
@@ -514,7 +520,8 @@ void Solver::start_train_work() {
         StringPrintf("Time cost for saving model: %.2f (sec)",
              timer.toc())
       );
-    } 
+    }
+    // Save TXT model 
     if (save_txt_model) {
       Timer timer;
       timer.tic();
