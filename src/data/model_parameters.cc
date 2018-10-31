@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// Copyright (c) 2016 by contributors. All Rights Reserved.
+// Copyright (c) 2018 by contributors. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,8 +15,6 @@
 //------------------------------------------------------------------------------
 
 /*
-Author: Chao Ma (mctt90@gmail.com)
-
 This file is the implementation of the Model class.
 */
 
@@ -63,6 +61,7 @@ void Model::Initialize(const std::string& score_func,
   scale_ = scale;
   // Calculate the number of model parameters
   param_num_w_ = num_feature * aux_size_;
+  // latent vector
   if (score_func == "linear") {
     param_num_v_ = 0;
   } else if (score_func == "fm") {
@@ -79,7 +78,7 @@ void Model::Initialize(const std::string& score_func,
 
 // To get the best performance for SSE, we need to
 // allocate memory for the model parameters in aligned way.
-// For SSE, the align number should be 16 byte.
+// For SSE, the align number should be 16 byte (kAlignByte).
 void Model::initial(bool set_val) {
   try {
     // Conventional malloc for linear term and bias
@@ -123,14 +122,14 @@ void Model::set_value() {
    *  Initialize linear and bias term                      *
    *********************************************************/
   for (index_t i = 0; i < param_num_w_; i += aux_size_) {
-    param_w_[i] = 0;        /* model */
+    param_w_[i] = 0.0;        /* model */
     for (index_t j = 1; j < aux_size_; ++j) {
-      param_w_[i+j] = 1.0;  /* gradient cache */
+      param_w_[i+j] = 1.0;    /* gradient cache */
     }
   }
-  param_b_[0] = 0;      /* model */
+  param_b_[0] = 0.0;      /* model */
   for (index_t j = 1; j < aux_size_; ++j) {
-    param_b_[j] = 1.0;  /* gradient cache */
+    param_b_[j] = 1.0;    /* gradient cache */
   }
   /*********************************************************
    *  Initialize latent factor for fm                      *
@@ -140,12 +139,15 @@ void Model::set_value() {
     real_t coef = 1.0f / sqrt(num_K_) * scale_;
     real_t* w = param_v_;
     for (index_t j = 0; j < num_feat_; ++j) {
-      for(index_t d = 0; d < num_K_; d++, w++)
-        *w = coef * dis(generator);
-      for(index_t d = num_K_; d < k_aligned; d++, w++)
-        *w = 0;
-      for(index_t d = k_aligned; d < aux_size_*k_aligned; d++, w++)
-        *w = 1.0;
+      for(index_t d = 0; d < num_K_; d++, w++) {
+        *w = coef * dis(generator);  /* model */
+      }
+      for(index_t d = num_K_; d < k_aligned; d++, w++) {
+        *w = 0;  /* Beyond aligned number */
+      }
+      for(index_t d = k_aligned; d < aux_size_*k_aligned; d++, w++) {
+        *w = 1.0;  /* gradient cache */
+      }
     }
   }
   /*********************************************************
@@ -159,9 +161,9 @@ void Model::set_value() {
       for (index_t f = 0; f < num_field_; ++f) {
         for (index_t d = 0; d < k_aligned; ) {
           for (index_t s = 0; s < kAlign; s++, w++, d++) {
-            w[0] = (d < num_K_) ? coef * dis(generator) : 0.0;
+            w[0] = (d < num_K_) ? coef * dis(generator) : 0.0; /* model */
             for (index_t j = 1; j < aux_size_; ++j) {
-              w[kAlign * j] = 1.0;
+              w[kAlign * j] = 1.0; /* gradient cache */
             }
           }
           w += (aux_size_-1) * kAlign;
@@ -191,7 +193,7 @@ void Model::free_model() {
 Model::Model(const std::string& filename) {
   CHECK_NE(filename.empty(), true);
   if (this->Deserialize(filename) == false) {
-    print_error(
+    Color::print_error(
       StringPrintf("Cannot Load model from the file: %s",
            filename.c_str())
     );
@@ -220,56 +222,63 @@ void Model::Serialize(const std::string& filename) {
   Close(file);
 }
 
-// Serialize current model to a txt file.
-void Model::SerializeToTxt(const std::string& filename) {
+// Serialize current model to a TXT file.
+void Model::SerializeToTXT(const std::string& filename) {
   CHECK_NE(filename.empty(), true);
   std::ofstream o_file(filename);
-  // For now, only LR model can dump to txt file.
-  /* bias */
-  o_file << (*param_b_) << "\n";
-  /* linear term */ 
-  for (index_t n = 0; n < param_num_w_; n+=aux_size_) {
-    o_file << *(param_w_+n) << "\n";
+  /*********************************************************
+   *  Write linear and bias term                      *
+   *********************************************************/
+  // bias term
+  o_file << "bias: " << param_b_[0] << "\n";
+  // linear term
+  index_t idx = 0;
+  for (index_t i = 0; i < param_num_w_; i += aux_size_) {
+    o_file << "i_" << idx << ": " << param_w_[i] << "\n";
+    idx++;
   }
-  /* letent factor */
-  index_t k_aligned = get_aligned_k();
+  /*********************************************************
+   *  Write latent factor for fm                      *
+   *********************************************************/
   if (score_func_.compare("fm") == 0) {
+    index_t k_aligned = get_aligned_k();
     real_t* w = param_v_;
     for (index_t j = 0; j < num_feat_; ++j) {
+      o_file << "v_" << j << ": ";
       for(index_t d = 0; d < num_K_; d++, w++) {
         o_file << *w;
         if (d != num_K_-1) {
           o_file << " ";
         }
       }
-      for(index_t d = num_K_; d < k_aligned; d++, w++) {
-        // do nothing
-      }
-      for(index_t d = k_aligned; d < aux_size_*k_aligned; d++, w++) {
-        // do nothing
-      }
       o_file << "\n";
+      // skip the rest parameters
+      index_t skip = aux_size_*k_aligned-num_K_;
+      w += skip;
     }
-  } else if (score_func_.compare("ffm") == 0) {
+  }
+  /*********************************************************
+   *  Write latent factor for ffm                     *
+   *********************************************************/
+  if (score_func_.compare("ffm") == 0) {
+    index_t k_aligned = get_aligned_k();
     real_t* w = param_v_;
     for (index_t j = 0; j < num_feat_; ++j) {
       for (index_t f = 0; f < num_field_; ++f) {
+        o_file << "v_" << j << "_" << f << ": ";
         for (index_t d = 0; d < k_aligned; ) {
           for (index_t s = 0; s < kAlign; s++, w++, d++) {
             if (d < num_K_) {
-              o_file << *w;
+              o_file << w[0];
               if (d != num_K_-1) {
                 o_file << " ";
               }
             }
-            for (index_t j = 1; j < aux_size_; ++j) {
-              // do nothing
-            }
           }
           w += (aux_size_-1) * kAlign;
         }
+        o_file << "\n";
       }
-      o_file << "\n";
     }
   }
 }

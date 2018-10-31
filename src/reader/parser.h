@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// Copyright (c) 2016 by contributors. All Rights Reserved.
+// Copyright (c) 2018 by contributors. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,10 +15,8 @@
 //------------------------------------------------------------------------------
 
 /*
-Author: Chao Ma (mctt90@gmail.com)
-
-This file defines the Parser class, which parses datasets
-to the DMatrix.
+This file defines the Parser class, which parses 
+datasets to the DMatrix.
 */
 
 #ifndef XLEARN_READER_PARSER_H_
@@ -65,22 +63,30 @@ class Parser {
     has_label_ = label;
   }
 
+  // Set Splitor
+  inline void setSplitor(const std::string& splitor) {
+    splitor_ = splitor;
+  }
+
   // The real parse function invoked by users.
-  virtual void Parse(char* buf, uint64 size, DMatrix& matrix) = 0;
+  // If reset == true, Parser will invoke matrix.Reset();
+  virtual void Parse(char* buf, 
+                     uint64 size, 
+                     DMatrix& matrix,
+                     bool reset = false) = 0;
 
  protected:
-   // Get how many lines in current memory buffer.
-   index_t get_line_number(char* buf, uint64 size);
-
    // Get one line from memory buffer.
    uint64 get_line_from_buffer(char* line,
-                         char* buf,
-                         uint64 pos,
-                         uint64 size);
+                               char* buf,
+                               uint64 pos,
+                               uint64 size);
 
    /* True for training task and
    False for prediction task */
    bool has_label_;
+   /* Split string for data items */
+   std::string splitor_;
 
  private:
   DISALLOW_COPY_AND_ASSIGN(Parser);
@@ -97,7 +103,10 @@ class LibsvmParser : public Parser {
   ~LibsvmParser() {  }
 
   // Parse the libsvm file
-  void Parse(char* buf, uint64 size, DMatrix& matrix);
+  void Parse(char* buf, 
+             uint64 size, 
+             DMatrix& matrix,
+             bool reset = false);
 
  private:
   DISALLOW_COPY_AND_ASSIGN(LibsvmParser);
@@ -114,7 +123,10 @@ class FFMParser : public Parser {
   ~FFMParser() {  }
 
   // Parse the libffm file
-  void Parse(char* buf, uint64 size, DMatrix& matrix);
+  void Parse(char* buf, 
+             uint64 size, 
+             DMatrix& matrix,
+             bool reset = false);
 
  private:
   DISALLOW_COPY_AND_ASSIGN(FFMParser);
@@ -135,7 +147,10 @@ class CSVParser : public Parser {
   ~CSVParser() { }
 
   // Parse the csv file
-  void Parse(char* buf, uint64 size, DMatrix& matrix);
+  void Parse(char* buf, 
+             uint64 size, 
+             DMatrix& matrix,
+             bool reset = false);
 
  private:
   DISALLOW_COPY_AND_ASSIGN(CSVParser);

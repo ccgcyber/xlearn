@@ -1,5 +1,5 @@
-//------------------------------------------------------------------------------
-// Copyright (c) 2016 by contributors. All Rights Reserved.
+ //------------------------------------------------------------------------------
+// Copyright (c) 2018 by contributors. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,7 +15,6 @@
 //------------------------------------------------------------------------------
 
 /*
-Author: Chao Ma (mctt90@gmail.com)
 This file is the implementation of the Trainer class.
 */
 
@@ -52,7 +51,7 @@ void Trainer::show_head_info(bool validate) {
   Color::Modifier green(Color::FG_GREEN);
   Color::Modifier reset(Color::RESET);
   std::cout << green << "[------------]" << reset;
-  print_row(str_list, width_list);
+  Color::print_row(str_list, width_list);
 }
 
 /*********************************************************
@@ -86,7 +85,7 @@ void Trainer::show_train_info(real_t tr_loss,
   std::cout.width(4); 
   std::cout << static_cast<int>(epoch*1.0/epoch_*100) 
             << "%" << green << "      ]"  << reset;
-  print_row(str_list, width_list);
+  Color::print_row(str_list, width_list);
 }
 
 /*********************************************************
@@ -109,7 +108,7 @@ void Trainer::Train() {
 void Trainer::CVTrain() {
   // Use the i-th reader as validation Reader
   for (int i = 0; i < reader_list_.size(); ++i) {
-    print_action(
+    Color::print_action(
       StringPrintf("Cross-validation: %d/%lu:", 
         i+1, reader_list_.size())
     );
@@ -143,13 +142,13 @@ void Trainer::show_average_metric() {
       metric += metric_info_[i].metric_val;
     }
   }
-  print_info(
+  Color::print_info(
     StringPrintf("Average %s: %.6f", 
     loss_->loss_type().c_str(), 
     loss / metric_info_.size())
   );
   if (metric_ != nullptr) {
-    print_info(
+    Color::print_info(
       StringPrintf("Average %s: %.6f", 
       metric_->metric_type().c_str(),
        metric / metric_info_.size())
@@ -164,8 +163,8 @@ void Trainer::train(std::vector<Reader*>& train_reader,
                     std::vector<Reader*>& test_reader) {
   int best_epoch = 0;
   int stop_window = 0;
-  real_t best_loss = kFloatMax;
-  real_t prev_loss = kFloatMax;
+  real_t best_result = metric_ == nullptr ? kFloatMax : kFloatMin;
+  real_t prev_result = metric_ == nullptr ? kFloatMin : kFloatMax;
   MetricInfo te_info;
   // Show header info
   if (!quiet_) { 
@@ -190,26 +189,33 @@ void Trainer::train(std::vector<Reader*>& train_reader,
                       n);
       // Early-stopping
       if (early_stop_) {
-        if (te_info.loss_val < best_loss) {
-          best_loss = te_info.loss_val;
+        if ((metric_ == nullptr && te_info.loss_val <= best_result) ||
+            (metric_ != nullptr && te_info.metric_val >= best_result))  {
+          best_result = metric_ == nullptr ? 
+            te_info.loss_val : te_info.metric_val;
           best_epoch = n;
           model_->SetBestModel();
         }
-        if (te_info.loss_val >= prev_loss) {
-          stop_window++;
+        if ((metric_ == nullptr && te_info.loss_val > prev_result) ||
+            (metric_ != nullptr && te_info.metric_val < prev_result)) {
           // If the validation loss goes up conntinuously
           // in stop_window epoch, we stop training
           if (stop_window == stop_window_) { break; }
+          stop_window++;
         } else {
           stop_window = 0;
         }
-        prev_loss = te_info.loss_val;
+        prev_result = metric_ == nullptr ? 
+          te_info.loss_val : te_info.metric_val;
       }
     }
   }
   if (early_stop_ && best_epoch != epoch_) {  // not for cv
-    print_action(
-      StringPrintf("Early-stopping at epoch %d", best_epoch)
+    std::string metric_name = metric_ == nullptr ? 
+      "loss" : metric_->metric_type();
+    Color::print_action(
+      StringPrintf("Early-stopping at epoch %d, best %s: %f", 
+        best_epoch, metric_name.c_str(), best_result)
     );
     model_->Shrink();
   } else {  // for cv

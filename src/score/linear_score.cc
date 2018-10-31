@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// Copyright (c) 2016 by contributors. All Rights Reserved.
+// Copyright (c) 2018 by contributors. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,7 +15,6 @@
 //------------------------------------------------------------------------------
 
 /*
-Author: Chao Ma (mctt90@gmail.com)
 This file is the implementation of LinearScore class.
 */
 
@@ -29,11 +28,16 @@ real_t LinearScore::CalcScore(const SparseRow* row,
                               Model& model,
                               real_t norm) {
   real_t* w = model.GetParameter_w();
+  index_t num_feat = model.GetNumFeature();
   real_t score = 0.0;
   index_t auxiliary_size = model.GetAuxiliarySize();
+  // linear term
   for (SparseRow::const_iterator iter = row->begin();
        iter != row->end(); ++iter) {
-    index_t idx = iter->feat_id * auxiliary_size;
+    index_t feat_id = iter->feat_id;
+    // To avoid unseen feature in Prediction
+    if (feat_id >= num_feat) continue;
+    index_t idx = feat_id * auxiliary_size;
     score += w[idx] * iter->feat_val;
   }
   // bias
@@ -58,9 +62,13 @@ void LinearScore::CalcGrad(const SparseRow* row,
   else if (opt_type_.compare("ftrl") == 0) {
     this->calc_grad_ftrl(row, model, pg, norm);
   }
+  else {
+    LOG(FATAL) << "Unknow optimization method: " << opt_type_;
+  }
 }
 
 // Calculate gradient and update current model using sgd
+// TODO(aksnzhy): solve unseen feature
 void LinearScore::calc_grad_sgd(const SparseRow* row,
                                 Model& model,
                                 real_t pg,
@@ -82,6 +90,7 @@ void LinearScore::calc_grad_sgd(const SparseRow* row,
 }
 
 // Calculate gradient and update current model using adagrad
+// TODO(aksnzhy): solve unseen feature
 void LinearScore::calc_grad_adagrad(const SparseRow* row,
                                     Model& model,
                                     real_t pg,
@@ -108,6 +117,7 @@ void LinearScore::calc_grad_adagrad(const SparseRow* row,
 }
 
 // Calculate gradient and update current model using ftrl
+// TODO(aksnzhy): solve unseen feature
 void LinearScore::calc_grad_ftrl(const SparseRow* row,
                                  Model& model,
                                  real_t pg,

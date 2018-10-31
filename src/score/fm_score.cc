@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// Copyright (c) 2016 by contributors. All Rights Reserved.
+// Copyright (c) 2018 by contributors. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,7 +15,6 @@
 //------------------------------------------------------------------------------
 
 /*
-Author: Chao Ma (mctt90@gmail.com)
 This file is the implementation of FMScore class.
 */
 
@@ -36,13 +35,15 @@ real_t FMScore::CalcScore(const SparseRow* row,
    *********************************************************/
   real_t sqrt_norm = sqrt(norm);
   real_t *w = model.GetParameter_w();
+  index_t num_feat = model.GetNumFeature();
   real_t t = 0;
   index_t aux_size = model.GetAuxiliarySize();
   for (SparseRow::const_iterator iter = row->begin();
        iter != row->end(); ++iter) {
-    t += (iter->feat_val *
-          w[iter->feat_id*aux_size] *
-          sqrt_norm);
+    index_t feat_id = iter->feat_id;
+    // To avoid unseen feature in Prediction
+    if (feat_id >= num_feat) continue;
+    t += (iter->feat_val * w[feat_id*aux_size] * sqrt_norm);
   }
   // bias
   w = model.GetParameter_b();
@@ -57,6 +58,8 @@ real_t FMScore::CalcScore(const SparseRow* row,
   for (SparseRow::const_iterator iter = row->begin();
        iter != row->end(); ++iter) {
     index_t j1 = iter->feat_id;
+    // To avoid unseen feature in Prediction
+    if (j1 >= num_feat) continue;
     real_t v1 = iter->feat_val;
     real_t *w = model.GetParameter_v() + j1 * align0;
     __m128 XMMv = _mm_set1_ps(v1*norm);
@@ -71,6 +74,8 @@ real_t FMScore::CalcScore(const SparseRow* row,
   for (SparseRow::const_iterator iter = row->begin();
        iter != row->end(); ++iter) {
     index_t j1 = iter->feat_id;
+    // To avoid unseen feature in Prediction
+    if (j1 >= num_feat) continue;
     real_t v1 = iter->feat_val;
     real_t *w = model.GetParameter_v() + j1 * align0;
     __m128 XMMv = _mm_set1_ps(v1*norm);
@@ -93,6 +98,7 @@ real_t FMScore::CalcScore(const SparseRow* row,
 
 // Calculate gradient and update current model parameters.
 // Using SSE to accelerate vector operation.
+// TODO(aksnzhy): solve unseen feature
 void FMScore::CalcGrad(const SparseRow* row,
                        Model& model,
                        real_t pg,
@@ -108,6 +114,9 @@ void FMScore::CalcGrad(const SparseRow* row,
   // Using ftrl 
   else if (opt_type_.compare("ftrl") == 0) {
     this->calc_grad_ftrl(row, model, pg, norm);
+  }
+  else {
+    LOG(FATAL) << "Unknow optimization method: " << opt_type_;
   }
 }
 
@@ -176,6 +185,7 @@ void FMScore::calc_grad_sgd(const SparseRow* row,
 }
 
 // Calculate gradient and update current model using adagrad
+// TODO(aksnzhy): solve unseen feature
 void FMScore::calc_grad_adagrad(const SparseRow* row,
                                 Model& model,
                                 real_t pg,
@@ -249,6 +259,7 @@ void FMScore::calc_grad_adagrad(const SparseRow* row,
 }
 
 // Calculate gradient and update current model using ftrl
+// TODO(aksnzhy): solve unseen feature
 void FMScore::calc_grad_ftrl(const SparseRow* row,
                              Model& model,
                              real_t pg,

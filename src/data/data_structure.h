@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// Copyright (c) 2016 by contributors. All Rights Reserved.
+// Copyright (c) 2018 by contributors. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,9 +15,7 @@
 //------------------------------------------------------------------------------
 
 /*
-Author: Chao Ma (mctt90@gmail.com)
-
-This file defines the basic data structures used by xLearn.
+This file defines the basic data structures.
 */
 
 #ifndef XLEARN_DATA_DATA_STRUCTURE_H_
@@ -35,7 +33,7 @@ This file defines the basic data structures used by xLearn.
 namespace xLearn {
 
 //------------------------------------------------------------------------------
-// We use 32-bits float to store the real number 
+// We use 32-bits float to store the real number during computation, 
 // such as the model parameter and the gradient.
 //------------------------------------------------------------------------------
 typedef float real_t;
@@ -52,7 +50,7 @@ typedef uint32 index_t;
 typedef std::unordered_map<index_t, index_t> feature_map;
 
 //------------------------------------------------------------------------------
-// We use SSE to accelerate our training, so some 
+// We use SSE to accelerate our training, and hence some 
 // parameters will be aligned.
 //------------------------------------------------------------------------------
 const int kAlign = 4;
@@ -103,11 +101,10 @@ typedef std::vector<Node> SparseRow;
 // We can use the DMatrix like this:
 //
 //    DMatrix matrix;
-//    /* Initialize 10 rows */
-//    matrix.ResetMatrix(10);   
 //    for (int i = 0; i < 10; ++i) {
-//      matrix.Y[i] = ...
-//      /* We set feild_id to 0 by default */
+//      matrix.AddRow();
+//      matrix.Y[i] = 0;
+//      matrix.norm[i] = 1.0;
 //      matrix.AddNode(i, feat_id, feat_val, field_id);
 //    }
 //
@@ -133,6 +130,7 @@ typedef std::vector<Node> SparseRow;
 //    index_t max_feat = matrix.MaxFeat();
 //    index_t max_field = matrix.MaxField();
 //------------------------------------------------------------------------------
+// TODO(aksnzhy): Implement incremental adding
 struct DMatrix {
   // Constructor
   DMatrix()
@@ -148,50 +146,56 @@ struct DMatrix {
   // Destructor
   ~DMatrix() { }
 
-  // Reset data for the DMatrix.
+  // ReAlloc memoryfor the DMatrix.
   // This function will first release the original
   // memory allocated for the DMatrix, and then re-allocate 
-  // memory for this matrix. For some dataset, it will not
+  // memory for this new matrix. For some dataset, it does not
   // contains the label y, and hence we need to set the 
   // has_label variable to false. On deafult, this value will
   // be set to true.
-  void ResetMatrix(size_t length, bool label = true) {
+  void ReAlloc(size_t length, bool label = true) {
     CHECK_GE(length, 0);
-    this->Release();
-    hash_value_1 = 0;
-    hash_value_2 = 0;
-    row_length = length;
-    row.resize(length, nullptr);
-    Y.resize(length, 0);
-    // we set norm to 1.0 by default, which means
+    this->Reset();
+    this->hash_value_1 = 0;
+    this->hash_value_2 = 0;
+    this->row_length = length;
+    this->row.resize(length, nullptr);
+    this->Y.resize(length, 0);
+    // Here we set norm to 1.0 by default, which means
     // that we don't use instance-wise nomarlization
-    norm.resize(length, 1.0);
+    this->norm.resize(length, 1.0);
     // Indicate that if current dataset has the label y
-    has_label = label;
-    pos = 0;
+    this->has_label = label;
+    this->pos = 0;
   }
 
-  // Release memory for DMatrix.
-  // Note that a typical alternative that forces a
-  // reallocation is to use swap(), instead of using clear().
-  void Release() {
-    hash_value_1 = 0;
-    hash_value_2 = 0;
+  // Reset memory for DMatrix.
+  void Reset() {
+    this->has_label = true;
+    this->hash_value_1 = 0;
+    this->hash_value_2 = 0;
     // Delete Y
-    std::vector<real_t>().swap(Y);
+    std::vector<real_t>().swap(this->Y);
     // Delete Node
-    for (int i = 0; i < row_length; ++i) {
-      if (row[i] != nullptr) {
-        STLDeleteElementsAndClear(&row);
+    for (int i = 0; i < this->row_length; ++i) {
+      if ((this->row)[i] != nullptr) {
+        STLDeleteElementsAndClear(&(this->row));
       }
     }
     // Delete SparseRow
-    std::vector<SparseRow*>().swap(row);
+    std::vector<SparseRow*>().swap(this->row);
     // Delete norm
-    std::vector<real_t>().swap(norm);
-    has_label = false;
-    row_length = 0;
-    pos = 0;
+    std::vector<real_t>().swap(this->norm);
+    this->row_length = 0;
+    this->pos = 0;
+  }
+
+  // Dynamically adding new row for current DMatrix.
+  void AddRow() {
+    this->Y.push_back(0);
+    this->norm.push_back(1.0);
+    this->row.push_back(nullptr);
+    row_length++;
   }
 
   // Add node to current data matrix.
@@ -225,7 +229,7 @@ struct DMatrix {
   // allocate memory if current matrix is empty.
   void CopyFrom(const DMatrix* matrix) {
     CHECK_NOTNULL(matrix);
-    this->Release();
+    this->Reset();
     // Copy hash value
     this->hash_value_1 = matrix->hash_value_1;
     this->hash_value_2 = matrix->hash_value_2;
@@ -311,12 +315,12 @@ struct DMatrix {
   // This method will be used for distributed computation. 
   // Return the count of sample for each function call.
   index_t GetMiniBatch(index_t batch_size, DMatrix& mini_batch) {
-    CHECK_EQ(batch_size, mini_batch.row_length);
     // Copy mini-batch
     for (index_t i = 0; i < batch_size; ++i) {
       if (this->pos >= this->row_length) {
         return i;
       }
+      mini_batch.AddRow();
       mini_batch.row[i] = this->row[pos];
       mini_batch.Y[i] = this->Y[pos];
       mini_batch.norm[i] = this->norm[pos];
@@ -355,7 +359,7 @@ struct DMatrix {
   // Deserialize the DMatrix from disk file.
   void Deserialize(const std::string& filename) {
     CHECK(!filename.empty());
-    this->Release();
+    this->Reset();
     FILE* file = OpenFileOrDie(filename.c_str(), "r");
     // Read hash_value
     ReadDataFromDisk(file, (char*)&hash_value_1, sizeof(hash_value_1));
@@ -405,16 +409,16 @@ struct DMatrix {
   }
 
   /* The DMatrix has a hash value that is geneerated 
-  from the txt file. These two values are used to check 
+  from the TXT file. These two values are used to check 
   whether we can use binary file to speedup data reading */
   uint64 hash_value_1;
   uint64 hash_value_2;
   /* Row length of current matrix */
   index_t row_length;
-  /* Using pointer for zero-copy */
+  /* Store many SparseRow. Using pointer for zero-copy */
   std::vector<SparseRow*> row;
-  /* 0 or -1 for negative and +1 for positive
-  example, and others for regression */
+  /* (0 or -1) for negative and (+1) for positive
+  examples, and others value for regression */
   std::vector<real_t> Y;
   /* Used for instance-wise normalization */
   std::vector<real_t> norm;

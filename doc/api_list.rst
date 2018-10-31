@@ -70,6 +70,8 @@ Options: ::
   -nthread <thread_number> :  Number of thread for multiple thread lock-free learning (Hogwild!).
 
   -block <block_size>  :  Block size for on-disk training.
+
+  -sw <stop_window>    :  Size of stop window for early-stopping. Using 2 by default. 
                                                                                      
   --disk               :  Open on-disk training for large-scale machine learning problems.
                                                                    
@@ -91,7 +93,7 @@ Options: ::
 
 For Prediction: ::
 
-    xlearn_predict <test_file> <model_file> [OPTIONS]
+    xlearn_predict <test_file_path> <model_file_path> [OPTIONS]
 
 Options: ::
 
@@ -101,9 +103,16 @@ Options: ::
 
   -nthread <thread number> :  Number of thread for multiple thread lock-free learning (Hogwild!).
 
+  -block <block_size>      :  Block size fot on-disk prediction. 
+
   --sign                   :  Converting output result to 0 and 1.
 
   --sigmoid                :  Converting output result to 0 ~ 1 (problebility).
+
+  --disk                   :  On-disk prediction.
+
+  --no-norm                :  Disable instance-wise normalization. By default, xLearn will use instance-wise 
+                              normalization in both training and prediction processes.
 
 xLearn Python API
 ------------------------------
@@ -154,7 +163,7 @@ Parameter List: ::
                 'reg'}     # Regression
 
     metric   : {'acc', 'prec', 'recall', 'f1', 'auc',   # for classification
-                'mae', 'mape', 'rmse', 'rmsd'}          # for regression
+                'mae', 'mape', 'rmse', 'rmsd'}  # for regression
 
     lr       : float value  # learning rate
 
@@ -172,11 +181,15 @@ Parameter List: ::
 
     lambda_2 : float value  # hyper parameter for ftrl
 
+    nthread  : int value    # the number of CPU cores
+
     epoch    : int vlaue    # number of epoch
 
     fold     : int value    # number of fold for cross-validation
 
     opt      : {'sgd', 'agagrad', 'ftrl'}  # optimization method
+
+    stop_window : Size of stop window for early-stopping.
 
     block_size : int value  # block size for on-disk training
 

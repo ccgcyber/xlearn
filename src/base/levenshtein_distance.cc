@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// Copyright (c) 2016 by contributors. All Rights Reserved.
+// Copyright (c) 2018 by contributors. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,21 +15,21 @@
 //------------------------------------------------------------------------------
 
 /*
-Author: Chao Ma (mctt90@gmail.com)
-
-This file if the implementation of StrSimilar class.
+This file is the implementation of StrSimilar class.
 */
 
 #include <algorithm>
 
 #include "src/base/levenshtein_distance.h"
 
-#define  min(a,b) ((a<b)?a:b)
+#define min(a,b) ((a<b)?a:b)
 
 // Find str in string list.
 // Return true if we can find str in target string list.
 bool StrSimilar::Find(const std::string& str,
                       const std::vector<std::string>& list) {
+  CHECK(!str.empty());
+  CHECK(!list.empty());
   std::vector<std::string>::const_iterator it;
   it = std::find(list.begin(), list.end(), str);
   if (it != list.end()) {
@@ -43,6 +43,8 @@ bool StrSimilar::Find(const std::string& str,
 int StrSimilar::FindSimilar(const std::string& str,
                             const std::vector<std::string>& list,
                             std::string& result) {
+  CHECK(!str.empty());
+  CHECK(!list.empty());
   int min_dis = kInt32Max;
   for (int i = 0; i < list.size(); ++i) {
     int dis = ldistance(str, list[i]);
@@ -58,6 +60,8 @@ int StrSimilar::FindSimilar(const std::string& str,
 // dynamic programing (DP).
 int StrSimilar::ldistance(const std::string& source,
                           const std::string& target) {
+  CHECK(!source.empty());
+  CHECK(!target.empty());
   //step 1
   int n = source.length();
   int m = target.length();
@@ -87,6 +91,6 @@ int StrSimilar::ldistance(const std::string& source,
       matrix[i][j] = min(above, min(left, diag));
      }
   }
-  //step7
+  //step 7
   return matrix[n][m];
 }

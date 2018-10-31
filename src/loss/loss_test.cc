@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// Copyright (c) 2016 by contributors. All Rights Reserved.
+// Copyright (c) 2018 by contributors. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,8 +15,6 @@
 //------------------------------------------------------------------------------
 
 /*
-Author: Chao Ma (mctt90@gmail.com)
-
 This file tests the Loss class.
 */
 
@@ -89,7 +87,7 @@ TEST_F(LossTest, Predict_Linear) {
   }
   // Create Data matrix
   DMatrix matrix;
-  matrix.ResetMatrix(kLine);
+  matrix.ReAlloc(kLine);
   for (int i = 0; i < kLine; ++i) {
     matrix.Y[i] = 0;
     matrix.row[i] = new SparseRow;
@@ -133,7 +131,7 @@ TEST_F(LossTest, Predict_FM) {
   }
   // Create Data matrix
   DMatrix matrix;
-  matrix.ResetMatrix(kLine);
+  matrix.ReAlloc(kLine);
   for (int i = 0; i < kLine; ++i) {
     matrix.Y[i] = 0;
     matrix.row[i] = new SparseRow;
@@ -178,7 +176,7 @@ TEST_F(LossTest, Predict_FFM) {
   }
   // Create Data matrix
   DMatrix matrix;
-  matrix.ResetMatrix(kLine);
+  matrix.ReAlloc(kLine);
   for (int i = 0; i < kLine; ++i) {
     matrix.Y[i] = 0;
     matrix.row[i] = new SparseRow;

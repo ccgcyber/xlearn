@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// Copyright (c) 2016 by contributors. All Rights Reserved.
+// Copyright (c) 2018 by contributors. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,8 +15,6 @@
 //------------------------------------------------------------------------------
 
 /*
-Author: Chao Ma (mctt90@gmail.com)
-
 This file provides a set of fast ( but approximate )
 mathmatic methods.
 */
@@ -171,7 +169,7 @@ static inline real_t fastersigmoid(real_t x) {
 static inline real_t InvSqrt(real_t x) {
   real_t xhalf = 0.5f*x;
   int i = *reinterpret_cast<int*>(&x);  // get bits for floating VALUE
-  i = 0x5f375a86- (i>>1);  // gives initial guess y0
+  i = 0x5f375a86-(i>>1);  // gives initial guess y0
   x = *reinterpret_cast<real_t*>(&i);  // convert bits BACK to float
   x = x*(1.5f-xhalf*x*x);  // Newton step, repeating increases accuracy
   return x;

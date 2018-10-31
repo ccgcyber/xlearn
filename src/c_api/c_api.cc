@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// Copyright (c) 2016 by contributors. All Rights Reserved.
+// Copyright (c) 2018 by contributors. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,9 +15,7 @@
 //------------------------------------------------------------------------------
 
 /*
-Author: Chao Ma (mctt90@gmail.com)
-
-This file is the implementation of C API for xLearn.
+This file is the implementation of C API.
 */
 
 #include <string>
@@ -41,7 +39,7 @@ XL_DLL int XLearnHello() {
                     "     \\ \\/ / |    / _ \\/ _` | '__| '_ \\ \n"
                     "      >  <| |___|  __/ (_| | |  | | | |\n"
                     "     /_/\\_\\_____/\\___|\\__,_|_|  |_| |_|\n\n"
-                    "        xLearn   -- 0.31 Version --\n"
+                    "        xLearn   -- 0.37 Version --\n"
 "----------------------------------------------------------------------------------------------\n"
 "\n";
   Color::Modifier green(Color::FG_GREEN);
@@ -152,7 +150,7 @@ XL_DLL int XLearnFit(XL *out, const char *model_path) {
   xl->GetSolver().Initialize(xl->GetHyperParam());
   xl->GetSolver().StartWork();
   xl->GetSolver().Clear();
-  print_info(
+  Color::print_info(
     StringPrintf("Total time cost: %.2f (sec)", 
     timer.toc()), true);
   API_END();
@@ -170,7 +168,7 @@ XL_DLL int XLearnCV(XL *out) {
   xl->GetSolver().StartWork();
   xl->GetSolver().Clear();
   xl->GetHyperParam().cross_validation = false;
-  print_info(
+  Color::print_info(
     StringPrintf("Total time cost: %.2f (sec)", 
     timer.toc()), true);
   API_END();
@@ -189,7 +187,7 @@ XL_DLL int XLearnPredict(XL *out, const char *model_path, const char *out_path) 
   xl->GetSolver().SetPredict();
   xl->GetSolver().StartWork();
   xl->GetSolver().Clear();
-  print_info(
+  Color::print_info(
     StringPrintf("Total time cost: %.2f (sec)", 
     timer.toc()), true);
   API_END();

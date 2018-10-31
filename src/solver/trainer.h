@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// Copyright (c) 2016 by contributors. All Rights Reserved.
+// Copyright (c) 2018 by contributors. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,8 +15,6 @@
 //------------------------------------------------------------------------------
 
 /*
-Author: Chao Ma (mctt90@gmail.com)
-
 This file defines the Trainer class.
 */
 
@@ -87,7 +85,7 @@ class Trainer {
   void SaveTxtModel(const std::string& filename) {
     CHECK_NE(filename.empty(), true);
     CHECK_NE(filename.compare("none"), 0);
-    model_->SerializeToTxt(filename);
+    model_->SerializeToTXT(filename);
   }
 
  protected:

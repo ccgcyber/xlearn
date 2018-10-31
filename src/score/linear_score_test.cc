@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// Copyright (c) 2016 by contributors. All Rights Reserved.
+// Copyright (c) 2018 by contributors. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,8 +15,6 @@
 //------------------------------------------------------------------------------
 
 /*
-Author: Chao Ma (mctt90@gmail.com)
-
 This file tests the LinearScore class.
 */
 
@@ -61,6 +59,29 @@ TEST_F(LinearScoreTest, calc_score) {
   model.GetParameter_b()[0] = 0.0;
   // Init SparseRow
   for (index_t i = 0; i < kLength; ++i) {
+    row[i].feat_id = i;
+    row[i].feat_val = 2.0;
+  }
+  LinearScore score;
+  real_t val = score.CalcScore(&row, model);
+  EXPECT_FLOAT_EQ(val, 600.0);
+}
+
+TEST_F(LinearScoreTest, calc_score_overflow) {
+  SparseRow row(2*kLength);
+  Model model;
+  model.Initialize(param.score_func,
+                param.loss_func,
+                param.num_feature,
+                0, 0, 2);
+  real_t* w = model.GetParameter_w();
+  index_t num_w = model.GetNumParameter_w();
+  for (index_t i = 0; i < num_w; ++i) {
+    w[i] = 3.0;
+  }
+  model.GetParameter_b()[0] = 0.0;
+  // Init SparseRow
+  for (index_t i = 0; i < 2*kLength; ++i) {
     row[i].feat_id = i;
     row[i].feat_val = 2.0;
   }

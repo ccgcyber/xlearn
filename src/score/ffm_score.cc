@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// Copyright (c) 2016 by contributors. All Rights Reserved.
+// Copyright (c) 2018 by contributors. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,7 +15,6 @@
 //------------------------------------------------------------------------------
 
 /*
-Author: Chao Ma (mctt90@gmail.com)
 This file is the implementation of FFMScore class.
 */
 
@@ -37,12 +36,15 @@ real_t FFMScore::CalcScore(const SparseRow* row,
   real_t sum_w = 0;
   real_t sqrt_norm = sqrt(norm);
   real_t *w = model.GetParameter_w();
+  index_t num_feat = model.GetNumFeature();
+  index_t num_field = model.GetNumField();
   index_t aux_size = model.GetAuxiliarySize();
   for (SparseRow::const_iterator iter = row->begin();
        iter != row->end(); ++iter) {
-    sum_w += (iter->feat_val * 
-              w[iter->feat_id*aux_size] * 
-              sqrt_norm);
+    index_t feat_id = iter->feat_id;
+    // To avoid unseen feature in Prediction
+    if (feat_id >= num_feat) continue;
+    sum_w += (iter->feat_val * w[feat_id*aux_size] * sqrt_norm);
   }
   // bias
   w = model.GetParameter_b();
@@ -51,7 +53,7 @@ real_t FFMScore::CalcScore(const SparseRow* row,
    *  latent factor                                        *
    *********************************************************/
   index_t align0 = aux_size * model.get_aligned_k();
-  index_t align1 = model.GetNumField() * align0;
+  index_t align1 = num_field * align0;
   int align = kAlign * aux_size;
   w = model.GetParameter_v();
   __m128 XMMt = _mm_setzero_ps();
@@ -59,11 +61,15 @@ real_t FFMScore::CalcScore(const SparseRow* row,
        iter_i != row->end(); ++iter_i) {
     index_t j1 = iter_i->feat_id;
     index_t f1 = iter_i->field_id;
+    // To avoid unseen feature in Prediction
+    if (j1 >= num_feat || f1 >= num_field) continue;
     real_t v1 = iter_i->feat_val;
     for (SparseRow::const_iterator iter_j = iter_i+1;
          iter_j != row->end(); ++iter_j) {
       index_t j2 = iter_j->feat_id;
       index_t f2 = iter_j->field_id;
+      // To avoid unseen feature in Prediction
+      if (j2 >= num_feat || f2 >= num_field) continue;
       real_t v2 = iter_j->feat_val;
       real_t* w1_base = w + j1*align1 + f2*align0;
       real_t* w2_base = w + j2*align1 + f1*align0;
@@ -102,10 +108,14 @@ void FFMScore::CalcGrad(const SparseRow* row,
   // Using ftrl 
   else if (opt_type_.compare("ftrl") == 0) {
     this->calc_grad_ftrl(row, model, pg, norm);
+  } 
+  else {
+    LOG(FATAL) << "Unknow optimization method: " << opt_type_;
   }
 }
 
 // Calculate gradient and update current model using sgd
+// TODO(aksnzhy): solve unseen feature
 void FFMScore::calc_grad_sgd(const SparseRow* row,
                              Model& model,
                              real_t pg,
@@ -172,6 +182,7 @@ void FFMScore::calc_grad_sgd(const SparseRow* row,
 }
 
 // Calculate gradient and update current model using adagrad
+// TODO(aksnzhy): solve unseen feature
 void FFMScore::calc_grad_adagrad(const SparseRow* row,
                                  Model& model,
                                  real_t pg,
@@ -251,6 +262,7 @@ void FFMScore::calc_grad_adagrad(const SparseRow* row,
 }
 
 // Calculate gradient and update current model using ftrl
+// TODO(aksnzhy): solve unseen feature
 void FFMScore::calc_grad_ftrl(const SparseRow* row,
                               Model& model,
                               real_t pg,

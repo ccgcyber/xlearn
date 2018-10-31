@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// Copyright (c) 2016 by contributors. All Rights Reserved.
+// Copyright (c) 2018 by contributors. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,9 +15,7 @@
 //------------------------------------------------------------------------------
 
 /*
-Author: Chao Ma (mctt90@gmail.com)
-
-This file defines the facilities for format printing.
+This file defines facilities for format printing.
 */
 
 #ifndef XLEARN_BASE_FORMAT_PRINT_H_
@@ -30,6 +28,9 @@ This file defines the facilities for format printing.
 #include "src/base/common.h"
 
 namespace Color {
+
+#define IMPORTANT_MSG true
+#define NOT_IMPORTANT_MSG false
 
 // Color table
 enum Code {
@@ -87,8 +88,6 @@ class Modifier {
   DISALLOW_COPY_AND_ASSIGN(Modifier);
 };
 
-}  // namespace Color
-
 // [Warning] blablabla ...
 inline void print_warning(const std::string& out) {
   Color::Modifier mag(Color::FG_MAGENTA);
@@ -114,15 +113,15 @@ inline void print_action(const std::string& out) {
             << out << reset << std::endl;
 }
 
-inline void print_info(const std::string& out, bool imp = false) {
+inline void print_info(const std::string& out, bool important = false) {
   Color::Modifier green(Color::FG_GREEN);
   Color::Modifier bold(Color::BOLD);
   Color::Modifier reset(Color::RESET);
-  if (!imp) {
+  if (!important) {
     std::cout << green << "[------------] " << reset
             << out << std::endl;
   } else {
-  	std::cout << green << bold << "[------------] " << out << reset
+    std::cout << green << bold << "[------------] " << out << reset
               << std::endl;
   }
 }
@@ -142,13 +141,15 @@ inline void print_info(const std::string& out, bool imp = false) {
 //------------------------------------------------------------------------------
 template <typename T>
 void print_row(const std::vector<T>& column, 
-	             const std::vector<int>& width) {
+               const std::vector<int>& width) {
   CHECK_EQ(column.size(), width.size());
   for (size_t i = 0; i < column.size(); ++i) {
-  	std::cout.width(width[i]);
-  	std::cout << column[i];
+    std::cout.width(width[i]);
+    std::cout << column[i];
   }
   std::cout << "\n";
 }
+
+}  // namespace Color
 
 #endif  // XLEARN_BASE_FORMAT_PRINT_H_

@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// Copyright (c) 2016 by contributors. All Rights Reserved.
+// Copyright (c) 2018 by contributors. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,8 +15,7 @@
 //------------------------------------------------------------------------------
 
 /*
-Author: Chao Ma (mctt90@gmail.com)
-This file is the implementation of the base Loss class.
+This file is the implementation of the basic Loss class.
 */
 
 #include "src/loss/loss.h"
@@ -83,7 +82,7 @@ void Loss::CalcGradDist(DMatrix* matrix,
   for(;;) {
     // Get a mini-batch from current data matrix
     DMatrix mini_batch;
-    mini_batch.ResetMatrix(batch_size_);
+    mini_batch.ReAlloc(batch_size_);
     index_t len = matrix->GetMiniBatch(batch_size_, mini_batch);
     if (len == 0) {
       break;

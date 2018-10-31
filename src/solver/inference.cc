@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// Copyright (c) 2016 by contributors. All Rights Reserved.
+// Copyright (c) 2018 by contributors. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,7 +15,6 @@
 //------------------------------------------------------------------------------
 
 /*
-Author: Chao Ma (mctt90@gmail.com)
 This file is the implementation of the Predictor class.
 */
 
@@ -54,7 +53,7 @@ void Predictor::Predict() {
     }
   }
   if (reader_->has_label()) {
-    print_info(
+    Color::print_info(
       StringPrintf("The test loss is: %.6f", 
         loss_->GetLoss())
     );
