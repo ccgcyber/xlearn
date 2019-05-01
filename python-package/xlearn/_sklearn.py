@@ -20,6 +20,7 @@ import warnings
 import numpy as np
 
 from .xlearn import create_linear, create_fm, create_ffm
+from .data import DMatrix
 from sklearn.base import BaseEstimator
 from sklearn.utils import check_array, check_X_y
 
@@ -111,7 +112,7 @@ class BaseXLearnModel(BaseEstimator):
     def __init__(self, model_type='fm', task='binary', metric='auc', block_size=500,
                  lr=0.2, k=4, reg_lambda=0.1, init=0.1, fold=1, epoch=5, stop_window=2,
                  opt='sgd', nthread=None, n_jobs=4, alpha=1, beta=1, lambda_1=1, lambda_2=1,
-                 **kwargs):
+                 seed=1, **kwargs):
         self.model_type = model_type
         self.task = task
         self.metric = metric
@@ -131,11 +132,12 @@ class BaseXLearnModel(BaseEstimator):
         self.lambda_2 = lambda_2
         self.kwargs = kwargs
         self.block_size = block_size
+        self.seed = seed
 
         # initialize internal structure
         self._XLearnModel = None
-        self._temp_model_file = tempfile.NamedTemporaryFile(delete=True)
-        self._temp_weight_file = tempfile.NamedTemporaryFile(delete=True)
+        self._temp_model_file = tempfile.NamedTemporaryFile(delete=False)
+        self._temp_weight_file = tempfile.NamedTemporaryFile(delete=False)
         self.weights = None
         self.fields = None
 
@@ -208,9 +210,6 @@ class BaseXLearnModel(BaseEstimator):
         else:
             raise Exception('model_type must be fm, ffm or lr')
 
-        # create temporary files for training data
-        temp_train_file = tempfile.NamedTemporaryFile(delete=True)
-
         if y is None:
             assert isinstance(X, str), 'X must be a string specifying training file location' \
                                        ' when only X specified'
@@ -224,9 +223,8 @@ class BaseXLearnModel(BaseEstimator):
                 self.fields = fields
 
             # convert data into libsvm/libffm format for training
-            # TODO: replace conversion with DMatrix
-            self._convert_data(X, y, temp_train_file.name, fields=self.fields)
-            self._XLearnModel.setTrain(temp_train_file.name)
+            train_set = DMatrix(X, y, self.fields)
+            self._XLearnModel.setTrain(train_set)
 
         # TODO: find out what task need to set sigmoid
         if self.task == 'binary':
@@ -261,9 +259,8 @@ class BaseXLearnModel(BaseEstimator):
                     y_numeric=True, 
                     multi_output=False)
 
-                temp_val_file = tempfile.NamedTemporaryFile(delete=True)
-                self._convert_data(X_val, y_val, temp_val_file.name, fields=self.fields)
-                self._XLearnModel.setValidate(temp_val_file.name)
+                validate_set = DMatrix(X_val, y_val, self.fields)
+                self._XLearnModel.setValidate(validate_set)
 
         # set up files for storing weights
         self._XLearnModel.setTXTModel(self._temp_weight_file.name)
@@ -274,9 +271,6 @@ class BaseXLearnModel(BaseEstimator):
         # acquire weights
         self._parse_weight(self._temp_weight_file.name)
 
-        # remove temporary files for training
-        self._remove_temp_file(temp_train_file)
-
     def predict(self, X):
         """ Generate prediction using feature matrix X
 
@@ -285,26 +279,15 @@ class BaseXLearnModel(BaseEstimator):
         :return: prediction
         """
 
-        # convert data to libsvm or libffm format
-        temp_test_file = tempfile.NamedTemporaryFile(delete=True)
-
         if isinstance(X, str):
             self._XLearnModel.setTest(X)
         else:
             X = check_array(X, accept_sparse=['csr'])
-            self._convert_data(X, None, temp_test_file.name, fields=self.fields)
-            self._XLearnModel.setTest(temp_test_file.name)
+            test_set = DMatrix(X, None, self.fields)
+            self._XLearnModel.setTest(test_set)
 
         # generate output
-        temp_output_file = tempfile.NamedTemporaryFile(delete=True)
-        self.get_model().predict(self._temp_model_file.name, temp_output_file.name)
-
-        # read output into numpy
-        pred = np.loadtxt(temp_output_file.name)
-
-        # remove temporary test data and output file
-        self._remove_temp_file(temp_test_file)
-        self._remove_temp_file(temp_output_file)
+        pred = self.get_model().predict(self._temp_model_file.name)
 
         return pred
 
@@ -356,10 +339,17 @@ class BaseXLearnModel(BaseEstimator):
         if os.path.exists(temp_bin_file):
             os.remove(temp_bin_file)
         temp_file.close()
+        if os.path.exists(temp_file.name):
+            os.remove(temp_file.name)
+
+    def __del__(self):
+        self._remove_temp_file(self._temp_model_file)
+        self._remove_temp_file(self._temp_weight_file)
 
     def __delete__(self, instance):
-        self._temp_model_file.close()
-        self._temp_weight_file.close()
+        # self._temp_model_file.close()
+        # self._temp_weight_file.close()
+        del instance
 
 class FMModel(BaseXLearnModel):
     """ Factorization machine (FM) model
@@ -367,12 +357,12 @@ class FMModel(BaseXLearnModel):
     def __init__(self, model_type='fm', task='binary', metric='auc', block_size=500,
                  lr=0.2, k=4, reg_lambda=0.1, init=0.1, fold=1, epoch=5, stop_window=2,
                  opt='sgd', nthread=None, n_jobs=4, alpha=1, beta=1, lambda_1=1, lambda_2=1,
-                 **kwargs):
+                 seed=1, **kwargs):
         assert model_type == 'fm', 'Model type must be set to fm for FMModel'
         super(FMModel, self).__init__(model_type, task, metric, block_size,
                                       lr, k, reg_lambda, init, fold, epoch, stop_window,
                                       opt, nthread, n_jobs, alpha, beta, lambda_1, lambda_2,
-                                      **kwargs)
+                                      seed, **kwargs)
 
     def __delete__(self, instance):
         super(FMModel, self).__delete__(instance)
@@ -383,12 +373,12 @@ class LRModel(BaseXLearnModel):
     def __init__(self, model_type='lr', task='binary', metric='auc', block_size=500,
                  lr=0.2, k=4, reg_lambda=0.1, init=0.1, fold=1, epoch=5, stop_window=2,
                  opt='sgd', nthread=None, n_jobs=4, alpha=1, beta=1, lambda_1=1, lambda_2=1,
-                 **kwargs):
+                 seed=1, **kwargs):
         assert model_type == 'lr', 'Model type must be set to lr for LRModel'
         super(LRModel, self).__init__(model_type, task, metric, block_size,
                                       lr, k, reg_lambda, init, fold, epoch, stop_window,
                                       opt, nthread, n_jobs, alpha, beta, lambda_1, lambda_2,
-                                      **kwargs)
+                                      seed, **kwargs)
 
     def __delete__(self, instance):
         super(LRModel, self).__delete__(instance)
@@ -399,12 +389,12 @@ class FFMModel(BaseXLearnModel):
     def __init__(self, model_type='ffm', task='binary', metric='auc', block_size=500,
                  lr=0.2, k=4, reg_lambda=0.1, init=0.1, fold=1, epoch=5, stop_window=2,
                  opt='sgd', nthread=None, n_jobs=4, alpha=1, beta=1, lambda_1=1, lambda_2=1,
-                 **kwargs):
+                 seed=1, **kwargs):
         assert model_type == 'ffm', 'Model type must be set to ffm for FFMModel'
         super(FFMModel, self).__init__(model_type, task, metric, block_size,
                                        lr, k, reg_lambda, init, fold, epoch, stop_window,
                                        opt, nthread, n_jobs, alpha, beta, lambda_1, lambda_2,
-                                       **kwargs)
+                                       seed, **kwargs)
 
     def __delete__(self, instance):
         super(FFMModel, self).__delete__(instance)

@@ -24,6 +24,12 @@ This file defines facilities for format printing.
 #include <iostream>
 #include <vector>
 #include <string>
+#ifdef _MSC_VER
+#define NOMINMAX
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#endif
+
 
 #include "src/base/common.h"
 
@@ -34,6 +40,7 @@ namespace Color {
 
 // Color table
 enum Code {
+#ifndef _MSC_VER
 /*********************************************************
  *  Color for front                                      *
  *********************************************************/
@@ -66,6 +73,40 @@ enum Code {
   BOLD_OFF       = 21,
   UNDER_LINE_OFF = 24,
   INVERSE_OFF    = 27
+#else
+/*********************************************************
+*  Color for front                                      *
+*********************************************************/
+	FG_RED = FOREGROUND_RED,
+	FG_GREEN = FOREGROUND_GREEN,
+	FG_YELLOW = FOREGROUND_RED | FOREGROUND_GREEN,
+	FG_BLUE = FOREGROUND_BLUE,
+	FG_MAGENTA = FOREGROUND_BLUE | FOREGROUND_RED,
+	FG_CYAN = FOREGROUND_BLUE | FOREGROUND_GREEN,
+	FG_WHITE = FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE,
+	FG_DEFAULT = FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE,
+/*********************************************************
+*  Color for Background                                 *
+*********************************************************/
+	BG_RED = BACKGROUND_RED,
+	BG_GREEN = BACKGROUND_GREEN,
+	BG_YELLOW = BACKGROUND_RED | BACKGROUND_GREEN,
+	BG_BLUE = BACKGROUND_BLUE,
+	BG_MAGENTA = BACKGROUND_BLUE | BACKGROUND_RED,
+	BG_CYAN = BACKGROUND_BLUE | BACKGROUND_GREEN,
+	BG_WHITE = BACKGROUND_RED | BACKGROUND_GREEN | BACKGROUND_BLUE,
+	BG_DEFAULT = BACKGROUND_RED | BACKGROUND_GREEN | BACKGROUND_BLUE,
+/*********************************************************
+*  Control code                                         *
+*********************************************************/
+	RESET = FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE, // everything back to normal
+	BOLD = FOREGROUND_INTENSITY,   // often a brighter shade of the same colour
+	UNDER_LINE = COMMON_LVB_UNDERSCORE,
+	INVERSE = COMMON_LVB_REVERSE_VIDEO,   // swap forground and background color
+	BOLD_OFF = 0,
+	UNDER_LINE_OFF = 0,
+	INVERSE_OFF = 0
+#endif
 };
 
 //------------------------------------------------------------------------------
@@ -79,25 +120,54 @@ enum Code {
 class Modifier {
   Code code;
  public:
-  Modifier(Code pCode) : code(pCode) {}
-  friend std::ostream&
-  operator<<(std::ostream& os, const Modifier& mod) {
-  	return os << "\033[" << mod.code << "m";
+  Modifier(Code pCode) : code(pCode) { }
+#ifndef _MSC_VER
+  friend std::ostream &operator<<(std::ostream &os, const Modifier &mod) {
+    return os << "\033[" << mod.code << "m";
   }
+#else
+  friend std::ostream &operator<<(std::ostream &os, const Modifier &mod) {
+    HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+    WORD currAttr;
+    CONSOLE_SCREEN_BUFFER_INFO csbi;
+    if(GetConsoleScreenBufferInfo(hConsole, &csbi))
+      currAttr = csbi.wAttributes;
+    // Only console text attribute is RESET(default value) at beginning,
+    // we set the text color, otherwise, use the settings of users.
+    if (is_first_) {
+      if (currAttr == RESET) {
+        SetConsoleTextAttribute(hConsole, mod.code);
+        // Only the console attribute is RESET,
+        // we change the flag of is_first
+        is_first_ = false;  
+      }
+    } else {
+      if (mod.code == RESET || currAttr == RESET)
+        SetConsoleTextAttribute(hConsole, mod.code);
+      else
+        SetConsoleTextAttribute(hConsole, mod.code | currAttr);
+    }
+
+    return os;
+  }
+#endif
+
  private:
+  // is the first Modifier object?
+  static bool is_first_;
   DISALLOW_COPY_AND_ASSIGN(Modifier);
 };
 
 // [Warning] blablabla ...
-inline void print_warning(const std::string& out) {
+inline void print_warning(const std::string &out) {
   Color::Modifier mag(Color::FG_MAGENTA);
   Color::Modifier bold(Color::BOLD);
   Color::Modifier reset(Color::RESET);
-  std::cout << mag << bold << "[ WARNING    ] " 
+  std::cout << mag << bold << "[ WARNING    ] "
             << out << reset << std::endl;
 }
 
-inline void print_error(const std::string& out) {
+inline void print_error(const std::string &out) {
   Color::Modifier red(Color::FG_RED);
   Color::Modifier bold(Color::BOLD);
   Color::Modifier reset(Color::RESET);
@@ -105,7 +175,7 @@ inline void print_error(const std::string& out) {
             << out << reset << std::endl;
 }
 
-inline void print_action(const std::string& out) {
+inline void print_action(const std::string &out) {
   Color::Modifier green(Color::FG_GREEN);
   Color::Modifier bold(Color::BOLD);
   Color::Modifier reset(Color::RESET);
@@ -113,16 +183,14 @@ inline void print_action(const std::string& out) {
             << out << reset << std::endl;
 }
 
-inline void print_info(const std::string& out, bool important = false) {
+inline void print_info(const std::string &out, bool important = false) {
   Color::Modifier green(Color::FG_GREEN);
   Color::Modifier bold(Color::BOLD);
   Color::Modifier reset(Color::RESET);
   if (!important) {
-    std::cout << green << "[------------] " << reset
-            << out << std::endl;
+    std::cout << green << "[------------] " << reset << out << std::endl;
   } else {
-    std::cout << green << bold << "[------------] " << out << reset
-              << std::endl;
+    std::cout << green << bold << "[------------] " << out << reset << std::endl;
   }
 }
 
@@ -140,8 +208,7 @@ inline void print_info(const std::string& out, bool important = false) {
 //   Meat       0x104       30    10.13
 //------------------------------------------------------------------------------
 template <typename T>
-void print_row(const std::vector<T>& column, 
-               const std::vector<int>& width) {
+void print_row(const std::vector<T> &column, const std::vector<int> &width) {
   CHECK_EQ(column.size(), width.size());
   for (size_t i = 0; i < column.size(); ++i) {
     std::cout.width(width[i]);
@@ -150,6 +217,6 @@ void print_row(const std::vector<T>& column,
   std::cout << "\n";
 }
 
-}  // namespace Color
+} // namespace Color
 
-#endif  // XLEARN_BASE_FORMAT_PRINT_H_
+#endif // XLEARN_BASE_FORMAT_PRINT_H_

@@ -35,6 +35,8 @@ Options: ::
   -m <model_file>      :  Path of the model dump file. On default, the model file name is 'train_file' + '.model'. 
                           If we set this value to 'none', the xLearn will not dump the model checkpoint.
 
+  -pre <pre-model>     :  Path of the pre-trained model. This can be used for online learning. 
+
   -t <txt_model_file>  :  Path of the TEXT model checkpoint file. On default, we do not set this option
                           and xLearn will not dump the TEXT model.
                                                                             
@@ -72,6 +74,8 @@ Options: ::
   -block <block_size>  :  Block size for on-disk training.
 
   -sw <stop_window>    :  Size of stop window for early-stopping. Using 2 by default. 
+
+  -seed <random_seed>  :  Random Seed to shuffle data set.
                                                                                      
   --disk               :  Open on-disk training for large-scale machine learning problems.
                                                                    
@@ -87,6 +91,8 @@ Options: ::
                                                                                          
   --no-norm            :  Disable instance-wise normalization. By default, xLearn will use instance-wise 
                           normalization in both training and prediction processes.
+
+  --no-bin             :  Do not generate bin file for training and test data file.
                                                                  
   --quiet              :  Don't print any evaluation information during the training and just train the 
                           model quietly. It can accelerate the training process.
@@ -123,6 +129,12 @@ API List: ::
 
     xl.hello()               # Say hello to user
 
+    # This part is for data
+    # X is feautres data, can be pandas DataFrame or numpy.ndarray,
+    # y is label, default None, can be pandas DataFrame\Series, array or list,
+    # filed_map is field map of features, default None, can be pandas DataFrame\Series, array or list
+    dmatrix = xl.DMatrix(X, y, field_map)  
+
     model = create_linear()  #  Create linear model.
 
     model = create_fm()      #  Create factorization machines.
@@ -134,18 +146,30 @@ API List: ::
     model.fit(param, "model_path")   #  Train model.
 
     model.cv(param)    # Perform cross-validation.
-
-    model.predict("model_path", "output_path")  # Perform prediction. 
-
-    model.setTrain("data_path")      #  Set training data for xLearn.
-
-    model.setValidate("data_path")   #  Set validation data for xLearn.
-
-    model.setTest("data_path")       #  Set test data for xLearn.
+    
+    # Users can choose one of this two
+    model.predict("model_path", "output_path")  # Perform prediction, output result to file, return None.
+    model.predict("model_path")                 # Perform prediction, return result by numpy.ndarray. 
+    
+    # Users can choose one of this two
+    model.setTrain("data_path")      #  Set training data from file for xLearn.
+    model.setTrain(dmatrix)          #  Set training data from DMatrix for xLearn.
+    
+    # Users can choose one of this two
+    # note: this type of validate must be same as train
+    # that is, set train from file, must set validate from file
+    model.setValidate("data_path")   #  Set validation data from file for xLearn.
+    model.setValidate(dmatrix)       #  Set validation data from DMatrix for xLearn.
+    
+    # Users can choose one of this two
+    model.setTest("data_path")       #  Set test data from file for xLearn.
+    model.setTest(dmatrix)           #  Set test data from DMatrix for xLearn.
 
     model.setQuiet()    #  Set xlearn to train model quietly.
 
     model.setOnDisk()   #  Set xlearn to use on-disk training.
+
+    model.setNoBin()    # Do not generate bin file for training and test data.
 
     model.setSign()     # Convert prediction to 0 and 1.
 

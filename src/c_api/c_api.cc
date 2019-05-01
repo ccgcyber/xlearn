@@ -39,7 +39,7 @@ XL_DLL int XLearnHello() {
                     "     \\ \\/ / |    / _ \\/ _` | '__| '_ \\ \n"
                     "      >  <| |___|  __/ (_| | |  | | | |\n"
                     "     /_/\\_\\_____/\\___|\\__,_|_|  |_| |_|\n\n"
-                    "        xLearn   -- 0.37 Version --\n"
+                    "        xLearn   -- 0.44 Version --\n"
 "----------------------------------------------------------------------------------------------\n"
 "\n";
   Color::Modifier green(Color::FG_GREEN);
@@ -59,6 +59,85 @@ XL_DLL int XLearnCreate(const char *model_type, XL *out) {
   API_END();
 }
 
+// Handle data matrix for xLearn
+XL_DLL int XlearnCreateDataFromMat(const real_t* data,
+                                   index_t nrow,
+                                   index_t ncol,
+                                   const real_t* label,
+                                   index_t* field_map,
+                                   DataHandle* out) {
+  API_BEGIN();
+  std::unique_ptr<xLearn::DMatrix> source(new xLearn::DMatrix());	
+  // if feature_map equal nullptr, we will not use field
+  if (label == nullptr) {
+    source->has_label = false;
+    if (field_map == nullptr) {
+      for (int i = 0; i < nrow; ++i) {	
+        source->AddRow();
+        real_t norm = 0.0;
+        for (int j = 0; j < ncol; ++j) {
+          real_t value = data[j+i*ncol];
+          source->AddNode(i, j, value);
+          norm += value*value;
+        }
+        norm = 1.0f / norm;
+        source->norm[i] = norm;
+      }
+    } else {
+      for (int i = 0; i < nrow; ++i) {	
+        source->AddRow();
+        real_t norm = 0.0;
+        for (int j = 0; j < ncol; ++j) {
+          real_t value = data[j+i*ncol];
+          source->AddNode(i, j, value, field_map[j]);
+          norm += value*value;
+        }
+        norm = 1.0f / norm;
+        source->norm[i] = norm;
+      }
+    }
+  } else {
+    source->has_label = true;
+    if (field_map == nullptr) {
+      for (int i = 0; i < nrow; ++i) {
+        source->AddRow();
+        real_t norm = 0.0;
+        source->Y[i] = label[i];
+        for (int j = 0; j < ncol; ++j) {
+          real_t value = data[j+i*ncol];
+          source->AddNode(i, j, value);
+          norm += value*value;
+        }
+        norm = 1.0f / norm;
+        source->norm[i] = norm;
+      }
+    } else {
+      for (int i = 0; i < nrow; ++i) {	
+        source->AddRow();
+        real_t norm = 0.0;
+        source->Y[i] = label[i];
+        for (int j = 0; j < ncol; ++j) {
+          real_t value = data[j+i*ncol];
+          source->AddNode(i, j, value, field_map[j]);
+          norm += value*value;
+        }
+        norm = 1.0f / norm;
+        source->norm[i] = norm;
+      }
+    }
+  }
+  *out = source.release();
+  API_END();
+}
+
+XL_DLL int XlearnDataFree(DataHandle* out) {
+  API_BEGIN();
+  CHECK_NOTNULL(out);
+  reinterpret_cast<xLearn::DMatrix*>(*out)->Reset();
+  delete reinterpret_cast<xLearn::DMatrix*>(*out);
+  API_END();
+}
+
 // Free the xLearn handle
 XL_DLL int XLearnHandleFree(XL *out) {
   API_BEGIN();
@@ -71,8 +150,8 @@ XL_DLL int XLearnShow(XL *out) {
   API_BEGIN()
   XLearn* xl = reinterpret_cast<XLearn*>(*out);
   printf("Info: \n Model: %s\n Loss: %s\n", 
-  	xl->GetHyperParam().score_func.c_str(),
-  	xl->GetHyperParam().loss_func.c_str());
+    xl->GetHyperParam().score_func.c_str(),
+    xl->GetHyperParam().loss_func.c_str());
   API_END()
 }
 
@@ -108,10 +187,29 @@ XL_DLL int XLearnGetTest(XL *out, std::string& test_path) {
   API_END();
 }
 
+// Set file path of the pre-trained model
+XL_DLL int XLearnSetPreModel(XL *out, const char *pre_model_path) {
+  API_BEGIN();
+  XLearn* xl = reinterpret_cast<XLearn*>(*out);
+  xl->GetHyperParam().pre_model_file = std::string(pre_model_path);
+  API_END();
+}
+
+// Get file path of the pre-trained model
+XL_DLL int XLearnGetPreModel(XL* out, std::string& pre_model_path) {
+  API_BEGIN();
+  XLearn* xl = reinterpret_cast<XLearn*>(*out);
+  pre_model_path = xl->GetHyperParam().pre_model_file;
+  API_END();
+}
+
 // Set file path of the validation data
 XL_DLL int XLearnSetValidate(XL *out, const char *val_path) {
   API_BEGIN();
   XLearn* xl = reinterpret_cast<XLearn*>(*out);
+  if (!xl->GetHyperParam().from_file){
+    throw std::runtime_error("Input for validation type Must equal to train's!");
+  }
   xl->GetHyperParam().validate_set_file = std::string(val_path);
   API_END();
 }
@@ -174,14 +272,42 @@ XL_DLL int XLearnCV(XL *out) {
   API_END();
 }
 
-// Start to predict
-XL_DLL int XLearnPredict(XL *out, const char *model_path, const char *out_path) {
+// Start to predict, this function is for output numpy
+XL_DLL int XLearnPredictForMat(XL *out, const char *model_path, 
+                               uint64 *length,
+                               const float** out_arr) {
+  API_BEGIN();
+  Timer timer;
+  timer.tic();
+  XLearn* xl = reinterpret_cast<XLearn*>(*out);
+  xl->GetHyperParam().model_file = std::string(model_path);
+  xl->GetHyperParam().res_out = false;
+  xl->GetHyperParam().is_train = false;
+  xl->GetSolver().Initialize(xl->GetHyperParam());
+  xl->GetSolver().SetPredict();
+  xl->GetSolver().StartWork();
+  static std::vector<real_t> tmp_preds;
+  tmp_preds = xl->GetSolver().GetResult();
+  std::vector<real_t> &preds = tmp_preds;
+  *out_arr = &preds[0];
+  *length = static_cast<uint64>(preds.size());
+  xl->GetSolver().Clear();
+  Color::print_info(
+    StringPrintf("Total time cost: %.2f (sec)", 
+    timer.toc()), true);
+  API_END();
+}
+
+// Start to predict, this function is for output file
+XL_DLL int XLearnPredictForFile(XL *out, const char *model_path, 
+                         const char *out_path) {
   API_BEGIN();
   Timer timer;
   timer.tic();
   XLearn* xl = reinterpret_cast<XLearn*>(*out);
   xl->GetHyperParam().model_file = std::string(model_path);
   xl->GetHyperParam().output_file = std::string(out_path);
+  xl->GetHyperParam().res_out = true;
   xl->GetHyperParam().is_train = false;
   xl->GetSolver().Initialize(xl->GetHyperParam());
   xl->GetSolver().SetPredict();
@@ -193,24 +319,40 @@ XL_DLL int XLearnPredict(XL *out, const char *model_path, const char *out_path) 
   API_END();
 }
 
+XL_DLL int XLearnSetDMatrix(XL *out, const char *key, DataHandle *out_data){
+  API_BEGIN()
+  XLearn* xl = reinterpret_cast<XLearn*>(*out);
+  if (strcmp(key, "train") == 0) {
+    xl->GetHyperParam().train_dataset = reinterpret_cast<xLearn::DMatrix*>(*out_data);
+    if (!xl->GetHyperParam().train_dataset->has_label){
+      throw std::runtime_error("Train set must have label!");
+    }
+  } else if (strcmp(key, "test") == 0) {
+    xl->GetHyperParam().test_dataset = reinterpret_cast<xLearn::DMatrix*>(*out_data);
+  } else if (strcmp(key, "validate") == 0) {
+    xl->GetHyperParam().valid_dataset = reinterpret_cast<xLearn::DMatrix*>(*out_data);
+  }
+  API_END();
+}
+
 // Set string param
 XL_DLL int XLearnSetStr(XL *out, const char *key, const char *value) {
   API_BEGIN();
   XLearn* xl = reinterpret_cast<XLearn*>(*out);
   if (strcmp(key, "task") == 0) {
-  	if (strcmp(value, "binary") == 0) {
-  	  xl->GetHyperParam().loss_func = std::string("cross-entropy");
-  	} else if (strcmp(value, "reg") == 0) {
-  	  xl->GetHyperParam().loss_func = std::string("squared");
-  	} else {
+    if (strcmp(value, "binary") == 0) {
+      xl->GetHyperParam().loss_func = std::string("cross-entropy");
+    } else if (strcmp(value, "reg") == 0) {
+      xl->GetHyperParam().loss_func = std::string("squared");
+    } else {
       xl->GetHyperParam().loss_func = std::string("unknow");
     }
   } else if (strcmp(key, "metric") == 0) {
-  	xl->GetHyperParam().metric = std::string(value);
+    xl->GetHyperParam().metric = std::string(value);
   } else if (strcmp(key, "log") == 0) {
-  	xl->GetHyperParam().log_file = std::string(value);
+    xl->GetHyperParam().log_file = std::string(value);
   } else if (strcmp(key, "loss") == 0) {
-  	xl->GetHyperParam().loss_func = std::string(value);
+    xl->GetHyperParam().loss_func = std::string(value);
   } else if (strcmp(key, "opt") == 0) {
     xl->GetHyperParam().opt_type = std::string(value);
   }
@@ -240,17 +382,19 @@ XL_DLL int XLearnSetInt(XL *out, const char *key, const int value) {
   API_BEGIN();
   XLearn* xl = reinterpret_cast<XLearn*>(*out);
   if (strcmp(key, "k") == 0) {
-  	xl->GetHyperParam().num_K = value;
+    xl->GetHyperParam().num_K = value;
   } else if (strcmp(key, "epoch") == 0) {
-  	xl->GetHyperParam().num_epoch = value;
+    xl->GetHyperParam().num_epoch = value;
   } else if (strcmp(key, "fold") == 0) {
-  	xl->GetHyperParam().num_folds = value;
+    xl->GetHyperParam().num_folds = value;
   } else if (strcmp(key, "block_size") == 0) {
-  	xl->GetHyperParam().block_size = value;
+    xl->GetHyperParam().block_size = value;
   } else if (strcmp(key, "nthread") == 0) {
     xl->GetHyperParam().thread_number = value;
   } else if (strcmp(key, "stop_window") == 0) {
     xl->GetHyperParam().stop_window = value;
+  } else if (strcmp(key, "seed") == 0) {
+    xl->GetHyperParam().seed = value;
   }
   API_END();
 }
@@ -280,11 +424,11 @@ XL_DLL int XLearnSetFloat(XL *out, const char *key, const float value) {
   API_BEGIN();
   XLearn* xl = reinterpret_cast<XLearn*>(*out);
   if (strcmp(key, "lr") == 0) {
-  	xl->GetHyperParam().learning_rate = value;
+    xl->GetHyperParam().learning_rate = value;
   } else if (strcmp(key, "lambda") == 0) {
-  	xl->GetHyperParam().regu_lambda = value;
+    xl->GetHyperParam().regu_lambda = value;
   } else if (strcmp(key, "init") == 0) {
-  	xl->GetHyperParam().model_scale = value;
+    xl->GetHyperParam().model_scale = value;
   } else if (strcmp(key, "alpha") == 0) {
     xl->GetHyperParam().alpha = value;
   } else if (strcmp(key, "beta") == 0) {
@@ -324,19 +468,23 @@ XL_DLL int XLearnSetBool(XL *out, const char *key, const bool value) {
   API_BEGIN();
   XLearn* xl = reinterpret_cast<XLearn*>(*out);
   if (strcmp(key, "on_disk") == 0) {
-  	xl->GetHyperParam().on_disk = value;
+    xl->GetHyperParam().on_disk = value;
   } else if (strcmp(key, "quiet") == 0) {
-  	xl->GetHyperParam().quiet = value;
+    xl->GetHyperParam().quiet = value;
   } else if (strcmp(key, "norm") == 0) {
-  	xl->GetHyperParam().norm = value;
+    xl->GetHyperParam().norm = value;
   } else if (strcmp(key, "lock_free") == 0) {
-  	xl->GetHyperParam().lock_free = value;
+    xl->GetHyperParam().lock_free = value;
   } else if (strcmp(key, "early_stop") == 0) {
-  	xl->GetHyperParam().early_stop = value;
+    xl->GetHyperParam().early_stop = value;
   } else if (strcmp(key, "sign") == 0) {
-  	xl->GetHyperParam().sign = value;
+    xl->GetHyperParam().sign = value;
   } else if (strcmp(key, "sigmoid") == 0) {
-  	xl->GetHyperParam().sigmoid = value;
+    xl->GetHyperParam().sigmoid = value;
+  } else if (strcmp(key, "bin_out") == 0) {
+    xl->GetHyperParam().bin_out = value;
+  } else if (strcmp(key, "from_file") == 0) {
+    xl->GetHyperParam().from_file = value;
   }
   API_END();
 }

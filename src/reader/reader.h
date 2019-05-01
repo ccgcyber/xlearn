@@ -78,6 +78,7 @@ class Reader {
   // Constructor and Desstructor
   Reader() : 
     shuffle_(false), 
+    bin_out_(true),
     block_size_(kDefautBlockSize) {  }
   virtual ~Reader() {  }
 
@@ -85,6 +86,7 @@ class Reader {
   // we start to sample data. We can shuffle data before 
   // training, and this is good for SGD.
   virtual void Initialize(const std::string& filename) = 0;
+  virtual void Initialize(xLearn::DMatrix* &dmatrix) = 0;
 
   // Sample data from disk or from memory buffer.
   // Return the number of record in each samplling.
@@ -110,6 +112,16 @@ class Reader {
   // Wether current dataset has label y ?
   bool inline has_label() { return has_label_; }
 
+  // Do not generate bin file
+  void SetNoBin() {
+    bin_out_ = false;  
+  }
+
+  // Set random see
+  void SetSeed(int seed) {
+    seed_ = seed;
+  }
+
   // If shuffle data ?
   virtual void SetShuffle(bool shuffle) {
     shuffle_ = shuffle;
@@ -128,12 +140,16 @@ class Reader {
   bool has_label_;
   /* If shuffle data ? */
   bool shuffle_;
+  /* Generate bin file ? */
+  bool bin_out_;
   /* Split string for data items */
   std::string splitor_;
   /* A block of memory to store the data */
   char* block_;
   /* Block size */
   size_t block_size_;
+  /* Random seed */
+  int seed_ = 1;
 
   // Check current file format and return
   // "libsvm", "ffm", or "csv".
@@ -160,7 +176,6 @@ class Reader {
 // For in-memory smaplling, the Reader will automatically convert
 // txt data to binary data, and uses this binary data in the next time.
 //------------------------------------------------------------------------------
-// TODO(aksnzhy): implement incremental reader
 class InmemReader : public Reader {
  public:
   // Constructor and Destructor
@@ -169,6 +184,7 @@ class InmemReader : public Reader {
 
   // Pre-load all the data into memory buffer.
   virtual void Initialize(const std::string& filename);
+  virtual void Initialize(xLearn::DMatrix* &dmatrix) { }
 
   // Sample data from the memory buffer.
   virtual index_t Samples(DMatrix* &matrix);
@@ -194,6 +210,7 @@ class InmemReader : public Reader {
   virtual inline void SetShuffle(bool shuffle) {
     this->shuffle_ = shuffle;
     if (shuffle_ && !order_.empty()) {
+      srand(this->seed_);
       random_shuffle(order_.begin(), order_.end());
     }
   }
@@ -244,6 +261,7 @@ class OndiskReader : public Reader {
 
   // Create parser and open file
   virtual void Initialize(const std::string& filename);
+  virtual void Initialize(xLearn::DMatrix* &dmatrix) { }
 
   // Sample data from disk file
   virtual index_t Samples(DMatrix* &matrix);
@@ -278,6 +296,56 @@ class OndiskReader : public Reader {
  
  private:
   DISALLOW_COPY_AND_ASSIGN(OndiskReader);
+};
+
+class FromDMReader : public Reader {
+ public:
+  // Constructor and Destructor
+  FromDMReader() : pos_(0) { }
+  ~FromDMReader() { }
+
+  virtual void Initialize(const std::string& filename) { };
+  virtual void Initialize(xLearn::DMatrix* &dmatrix);
+
+  virtual index_t Samples(DMatrix* &matrix);
+
+  // Return to the begining of the data.
+  virtual void Reset() { pos_ = 0; }
+
+  // Free the memory of data matrix.
+  virtual void Clear() {
+    data_samples_.Reset();
+    if (block_ != nullptr) {
+      delete [] block_;
+    }
+  }
+
+  // Return the Reader type
+  virtual std::string Type() {
+    return "from-dmatrix";
+  }
+
+  // If shuffle data ?
+  virtual inline void SetShuffle(bool shuffle) {
+    this->shuffle_ = shuffle;
+    if (shuffle_ && !order_.empty()) {
+      srand(this->seed_);
+      random_shuffle(order_.begin(), order_.end());
+    }
+  }
+
+ protected:
+  DMatrix* data_ptr_;
+  /* Number of record at each samplling */
+  index_t num_samples_;
+  /* Position for samplling */
+  index_t pos_;
+  /* For random shuffle */
+  std::vector<index_t> order_;
+
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(FromDMReader);
 };
 
 //------------------------------------------------------------------------------

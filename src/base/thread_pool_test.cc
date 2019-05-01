@@ -33,11 +33,17 @@ TEST(ThreadPoolTest, Print_test) {
     pool.enqueue(std::bind(func, 2));
     pool.enqueue(std::bind(func, 3));
     pool.enqueue(std::bind(func, 4));
-    pool.Sync(4);
+    pool.enqueue(std::bind(func, 5));
+    pool.enqueue(std::bind(func, 6));
+    pool.Sync(6);
     printf("Hello master\n");
   }
   printf("final\n");
+#ifndef _MSC_VER
   usleep(100);
+#else
+  std::this_thread::sleep_for(std::chrono::microseconds(100));
+#endif
 }
 
 int a1 = 0;

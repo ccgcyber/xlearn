@@ -1,4 +1,4 @@
-# Copyright (c) 2016 by contributors.
+# Copyright (c) 2018 by contributors.
 # Authour: Chao Ma (mctt90@gmail.com)
 #
 # This is the root CMakeLists.txt file of the xLearn project, which
@@ -30,8 +30,12 @@ cmake_minimum_required(VERSION 2.8)
 # Using c++11;
 # Optimization on architecture
 #-------------------------------------------------------------------------------
+if(NOT WIN32)
 add_definitions("-Wall -Wno-sign-compare -O3 -std=c++11 
 -march=native -Wno-strict-aliasing -Wno-comment")
+else(WIN32)
+add_definitions("/WX- /MT")
+endif()
 
 #-------------------------------------------------------------------------------
 # Declare where our project will be installed.
@@ -41,7 +45,7 @@ set(CMAKE_INSTALL_PREFIX "xLearn")
 #-------------------------------------------------------------------------------
 # For Mac OSX
 #-------------------------------------------------------------------------------
-set(CMAKE_MACOSX_RPATH TRUE)
+#set(CMAKE_MACOSX_RPATH TRUE)
 
 #-------------------------------------------------------------------------------
 # Set include paths and library paths.

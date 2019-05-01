@@ -35,13 +35,18 @@ namespace xLearn {
 CLASS_REGISTER_IMPLEMENT_REGISTRY(xLearn_reader_registry, Reader);
 REGISTER_READER("memory", InmemReader);
 REGISTER_READER("disk", OndiskReader);
+REGISTER_READER("dmatrix", FromDMReader);
 
 // Check current file format and
 // return 'libsvm', 'libffm', or 'csv'.
 // This function will also check if current
 // data has the label y.
 std::string Reader::check_file_format() {
+#ifndef _MSC_VER
   FILE* file = OpenFileOrDie(filename_.c_str(), "r");
+#else
+  FILE* file = OpenFileOrDie(filename_.c_str(), "rb");
+#endif
   // get the first line of data
   std::string data_line;
   GetLine(file, data_line);
@@ -160,7 +165,11 @@ bool InmemReader::hash_binary(const std::string& filename) {
   std::string bin_file = filename + ".bin";
   // If the ".bin" file does not exists, return false.
   if (!FileExist(bin_file.c_str())) { return false; }
+#ifndef _MSC_VER
   FILE* file = OpenFileOrDie(bin_file.c_str(), "r");
+#else
+  FILE* file = OpenFileOrDie(bin_file.c_str(), "rb");
+#endif
   // Check the first hash value
   uint64 hash_1 = 0;
   ReadDataFromDisk(file, (char*)&hash_1, sizeof(hash_1));
@@ -196,7 +205,7 @@ void InmemReader::init_from_binary() {
 
 // Pre-load all the data to memory buffer from txt file.
 void InmemReader::init_from_txt() {
-  // Init parser_                                 
+  // Init parser_                       
   parser_ = CreateParser(check_file_format().c_str());
   if (has_label_) parser_->setLabel(true);
   else parser_->setLabel(false);
@@ -205,7 +214,11 @@ void InmemReader::init_from_txt() {
   // Convert MB to Byte
   uint64 read_byte = block_size_ * 1024 * 1024;
   // Open file
+#ifndef _MSC_VER
   FILE* file = OpenFileOrDie(filename_.c_str(), "r");
+#else
+  FILE* file = OpenFileOrDie(filename_.c_str(), "rb");
+#endif
   // Read until the end of file
   for (;;) {
     // Read a block of data from disk file
@@ -230,8 +243,10 @@ void InmemReader::init_from_txt() {
     order_[i] = i;
   }
   // Deserialize in-memory buffer to disk file.
-  std::string bin_file = filename_ + ".bin";
-  data_buf_.Serialize(bin_file);
+  if (bin_out_) {
+    std::string bin_file = filename_ + ".bin";
+    data_buf_.Serialize(bin_file);
+  }
   delete [] block_;
   Close(file);
 }
@@ -243,6 +258,7 @@ index_t InmemReader::Samples(DMatrix* &matrix) {
       // End of the data buffer
       if (i == 0) {
         if (shuffle_) {
+          srand(this->seed_+1);
           random_shuffle(order_.begin(), order_.end());
         }
         matrix = nullptr;
@@ -287,7 +303,11 @@ void OndiskReader::Initialize(const std::string& filename) {
                << "You set change the block size via configuration.";
   }
   // Open file
+#ifndef _MSC_VER
   file_ptr_ = OpenFileOrDie(filename_.c_str(), "r");
+#else
+  file_ptr_ = OpenFileOrDie(filename_.c_str(), "rb");
+#endif
 }
 
 // Return to the begining of the file
@@ -315,6 +335,43 @@ index_t OndiskReader::Samples(DMatrix* &matrix) {
   parser_->Parse(block_, ret, data_samples_, true);
   matrix = &data_samples_;
   return data_samples_.row_length;
+}
+
+void FromDMReader::Initialize(xLearn::DMatrix* &dmatrix) { 
+  this->data_ptr_ = dmatrix;
+  has_label_ = this->data_ptr_->has_label;
+  num_samples_ = this->data_ptr_->row_length;
+  data_samples_.ReAlloc(num_samples_, has_label_);
+  // for shuffle
+  order_.resize(num_samples_);
+  for (int i = 0; i < order_.size(); ++i) {
+    order_[i] = i;
+  }
+}
+
+// Smaple data from memory buffer.
+index_t FromDMReader::Samples(DMatrix* &matrix) {
+  for (int i = 0; i < num_samples_; ++i) {
+    if (pos_ >= this->data_ptr_->row_length) {
+      // End of the data buffer
+      if (i == 0) {
+        if (shuffle_) {
+          srand(this->seed_+1);
+          random_shuffle(order_.begin(), order_.end());
+        }
+        matrix = nullptr;
+        return 0;
+      }
+      break;
+    }
+    // Copy data between different DMatrix.
+    data_samples_.row[i] = this->data_ptr_->row[order_[pos_]];
+    data_samples_.Y[i] = this->data_ptr_->Y[order_[pos_]];
+    data_samples_.norm[i] = this->data_ptr_->norm[order_[pos_]];
+    pos_++;
+  }
+  matrix = &data_samples_;
+  return num_samples_;
 }
 
 }  // namespace xLearn

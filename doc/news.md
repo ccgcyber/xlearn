@@ -1,6 +1,33 @@
 ## What's New
 
- - 2018-10-29 xLearn 0.3.6 version release. Main update:
+ - 2019-4-25 xLearn 0.4.4 version release. Main update:
+
+    * Support Python DMatrix
+    * Better Windows support
+    * Fix bugs in previous version
+
+ - 2019-3-25 xLearn 0.4.3 version release. Main update:
+    * Fix bugs in previous version
+    
+ - 2019-3-12 xLearn 0.4.2 version release. Main update:
+    * Release Windows version of xLearn
+
+ - 2019-1-30 xLearn 0.4.1 version release. Main update:
+    * More flexible data reader.
+
+ - 2018-11-22 xLearn 0.4.0 version release. Main update:
+
+    * Fix bugs in previous version
+    * Add online learning for xLearn
+
+ - 2018-11-10 xLearn 0.3.8 version release. Main update:
+
+    * Fix bugs in previous version.
+    * Update early-stop mechanism.
+
+ - 2018-11-08. xLearn gets 2000 star! Congs!
+
+ - 2018-10-29 xLearn 0.3.7 version release. Main update:
 
     * Add incremental Reader, which can save 50% memory cost.
 

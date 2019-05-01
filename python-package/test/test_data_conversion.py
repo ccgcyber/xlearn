@@ -17,6 +17,7 @@
 import unittest
 import tempfile
 
+import os 
 import numpy as np
 from xlearn import write_data_to_xlearn_format
 from scipy.sparse import csr_matrix
@@ -69,7 +70,7 @@ class TestDataConversion(unittest.TestCase):
         Test if the conversion between libsvm and numpy array is correct
         """
 
-        file = tempfile.NamedTemporaryFile(delete=True)
+        file = tempfile.NamedTemporaryFile(delete=False)
 
         # write to temporary files
         write_data_to_xlearn_format(self.X, self.y, file.name)
@@ -77,6 +78,8 @@ class TestDataConversion(unittest.TestCase):
         # load data back and compare if they are the same as original data
         X_true, y_true = load_svmlight_file(file.name)
         file.close()
+        if os.path.exists(file.name):
+            os.remove(file.name)
 
         assert np.all(np.isclose(self.X, X_true.todense()))
         assert np.all(self.y.ravel() == y_true.ravel())
@@ -86,7 +89,7 @@ class TestDataConversion(unittest.TestCase):
         Test if the conversion between libsvm and csr matrix is correct
         """
         X_spase = csr_matrix(self.X)
-        file = tempfile.NamedTemporaryFile(delete=True)
+        file = tempfile.NamedTemporaryFile(delete=False)
 
         # write to temporary files
         write_data_to_xlearn_format(X_spase, self.y, file.name)
@@ -94,6 +97,8 @@ class TestDataConversion(unittest.TestCase):
         # load data back and compare if they are the same as original data
         X_true, y_true = load_svmlight_file(file.name)
         file.close()
+        if os.path.exists(file.name):
+            os.remove(file.name)
 
         assert np.all(np.isclose(X_spase.todense(), X_true.todense()))
         assert np.all(self.y.ravel() == y_true.ravel())
@@ -102,7 +107,7 @@ class TestDataConversion(unittest.TestCase):
         """
         Test if the conversion between libffm and numpy array is correct
         """
-        file = tempfile.NamedTemporaryFile(delete=True)
+        file = tempfile.NamedTemporaryFile(delete=False)
 
         # write data to libffm format
         write_data_to_xlearn_format(self.X, self.y, file.name, fields=self.fields)
@@ -110,6 +115,8 @@ class TestDataConversion(unittest.TestCase):
         # read back data from file
         X_true, y_true, field_true = self._read_libffm_file(file.name)
         file.close()
+        if os.path.exists(file.name):
+            os.remove(file.name)
 
         assert np.all(np.isclose(self.X, X_true))
         assert np.all(self.y.ravel() == y_true.ravel())
@@ -120,7 +127,7 @@ class TestDataConversion(unittest.TestCase):
         Test if the conversion between libffm and csr matrix is correct
         """
         X_sparse = csr_matrix(self.X)
-        file = tempfile.NamedTemporaryFile(delete=True)
+        file = tempfile.NamedTemporaryFile(delete=False)
 
         # write data to libffm format
         write_data_to_xlearn_format(X_sparse, self.y, file.name, fields=self.fields)
@@ -128,6 +135,8 @@ class TestDataConversion(unittest.TestCase):
         # read back data from file
         X_true, y_true, field_true = self._read_libffm_file(file.name)
         file.close()
+        if os.path.exists(file.name):
+            os.remove(file.name)
 
         assert np.all(np.isclose(X_sparse.todense(), X_true))
         assert np.all(self.y.ravel() == y_true.ravel())

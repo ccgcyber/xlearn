@@ -67,7 +67,6 @@ OPTIONS:
                           not dump the model checkpoint after training. 
 
   -pre <pre-model>     :  Path of the pre-trained model. This can be used for online learning. 
-                          (Under developing)
 
   -t <txt_model_file>  :  Path of the txt model checkpoint file. On default, this option is empty 
                           and xLearn will not dump the txt model. 
@@ -108,6 +107,8 @@ OPTIONS:
 
   -sw <stop_window>    :  Size of stop window for early-stopping. Using 2 by default.                       
                                                                                       
+  -seed <random_seed>  :  Random Seed to shuffle data set.
+
   --disk               :  Open on-disk training for large-scale machine learning problems. 
                                                                     
   --cv                 :  Open cross-validation in training tasks. If we use this option, xLearn 
@@ -122,6 +123,8 @@ OPTIONS:
                                                                                           
   --no-norm            :  Disable instance-wise normalization. By default, xLearn will use 
                           instance-wise normalization for both training and prediction. 
+
+  --no-bin             :  Do not generate bin file for training and test data file.
                                                                   
   --quiet              :  Don't print any evaluation information during the training and 
                           just train the model quietly. 
@@ -179,10 +182,12 @@ void Checker::Initialize(bool is_train, int argc, char* argv[]) {
     menu_.push_back(std::string("-nthread"));
     menu_.push_back(std::string("-block"));
     menu_.push_back(std::string("-sw"));
+    menu_.push_back(std::string("-seed"));
     menu_.push_back(std::string("--disk"));
     menu_.push_back(std::string("--cv"));
     menu_.push_back(std::string("--dis-es"));
     menu_.push_back(std::string("--no-norm"));
+    menu_.push_back(std::string("--no-bin"));
     menu_.push_back(std::string("--quiet"));
     menu_.push_back(std::string("-alpha"));
     menu_.push_back(std::string("-beta"));
@@ -470,6 +475,18 @@ bool Checker::check_train_options(HyperParam& hyper_param) {
         hyper_param.stop_window = value;
       }
       i += 2;
+    } else if (list[i].compare("-seed") == 0) {  // random seed
+      int value = atoi(list[i+1].c_str());
+      if (value < 1) {
+        Color::print_error(
+          StringPrintf("Illegal -seed : '%i'. -seed must be greater than or equal to 1.",
+               value)
+        );
+        bo = false;
+      } else {
+        hyper_param.seed = value;
+      }
+      i += 2;
     } else if (list[i].compare("--disk") == 0) {  // on-disk training
       hyper_param.on_disk = true;
       i += 1;
@@ -484,6 +501,9 @@ bool Checker::check_train_options(HyperParam& hyper_param) {
       i += 1;
     } else if (list[i].compare("--no-norm") == 0) {  // normalization
       hyper_param.norm = false;
+      i += 1;
+    } else if (list[i].compare("--no-bin") == 0) {  // do not generate bin file
+      hyper_param.bin_out = false;
       i += 1;
     } else if (list[i].compare("--quiet") == 0) {  // quiet
       hyper_param.quiet = true;
@@ -576,20 +596,29 @@ bool Checker::check_train_param(HyperParam& hyper_param) {
   /*********************************************************
    *  Check file path                                      *
    *********************************************************/
-  if (!FileExist(hyper_param.train_set_file.c_str())) {
-    Color::print_error(
-      StringPrintf("Training data file: %s does not exist.", 
-                    hyper_param.train_set_file.c_str())
-    );
-    bo = false;
-  }
-  if (!hyper_param.validate_set_file.empty() &&
-      !FileExist(hyper_param.validate_set_file.c_str())) {
-    Color::print_error(
-      StringPrintf("Validation data file: %s does not exist.", 
-                    hyper_param.validate_set_file.c_str())
-    );
-    bo = false;
+  if (hyper_param.from_file) {
+    if (!FileExist(hyper_param.train_set_file.c_str())) {
+      Color::print_error(
+        StringPrintf("Training data file: %s does not exist.", 
+                      hyper_param.train_set_file.c_str())
+      );
+      bo = false;
+    }
+    if (!hyper_param.validate_set_file.empty() &&
+        !FileExist(hyper_param.validate_set_file.c_str())) {
+      Color::print_error(
+        StringPrintf("Validation data file: %s does not exist.", 
+                      hyper_param.validate_set_file.c_str())
+      );
+      bo = false;
+    }  
+  } else {
+    if (hyper_param.train_dataset == nullptr) {
+      Color::print_error(
+        StringPrintf("Training dataset is None, please check!")
+      );
+      bo = false;
+    }
   }
   /*********************************************************
    *  Check invalid value                                  *
@@ -676,6 +705,11 @@ bool Checker::check_train_param(HyperParam& hyper_param) {
 
 // Check warning and fix conflict
 void Checker::check_conflict_train(HyperParam& hyper_param) {
+  if (!hyper_param.from_file && hyper_param.cross_validation) {
+    Color::print_warning("Transform DMatrix not from file doesn't support cross-validation. "
+                         "xLearn has already disable the -cv option.");
+    hyper_param.cross_validation = false;
+  }
   if (hyper_param.on_disk && hyper_param.cross_validation) {
     Color::print_warning("On-disk training doesn't support cross-validation. "
                          "xLearn has already disable the -cv option.");
@@ -704,13 +738,15 @@ void Checker::check_conflict_train(HyperParam& hyper_param) {
                          "xLearn will not dump model checkpoint to disk.");
     hyper_param.model_file.clear();
   }
-  if (hyper_param.validate_set_file.empty() && hyper_param.early_stop) {
-    Color::print_warning("Validation file not found, xLearn has already "
+  if ((hyper_param.validate_set_file.empty() && hyper_param.valid_dataset == nullptr) 
+      && hyper_param.early_stop) {
+    Color::print_warning("Validation file(dataset) not found, xLearn has already "
                          "disable early-stopping.");
     hyper_param.early_stop = false;
   }
   if (hyper_param.metric.compare("none") != 0 &&
-      hyper_param.validate_set_file.empty() &&
+      hyper_param.validate_set_file.empty() && 
+      hyper_param.valid_dataset == nullptr &&
       !hyper_param.cross_validation) {
     Color::print_warning(
       StringPrintf("Validation file not found, xLearn has already "
@@ -863,19 +899,28 @@ bool Checker::check_prediction_param(HyperParam& hyper_param) {
  /*********************************************************
   *  Check the path of test set file                      *
   *********************************************************/
- if (!FileExist(hyper_param.test_set_file.c_str())) {
-    Color::print_error(
-      StringPrintf("Test set file: %s does not exist.",
-           hyper_param.test_set_file.c_str())
-    );
-    bo =  false;
+ if (hyper_param.from_file) {
+  if (!FileExist(hyper_param.test_set_file.c_str())) {
+      Color::print_error(
+        StringPrintf("Test set file: %s does not exist.",
+            hyper_param.test_set_file.c_str())
+      );
+      bo =  false;
+  }
+ } else {
+   if (hyper_param.test_dataset == nullptr) {
+      Color::print_error(
+        StringPrintf("Test dataset is None, please check!")
+      );
+      bo =  false;
+   }
  }
  /*********************************************************
   *  Check the path of model file                         *
   *********************************************************/
  if (!FileExist(hyper_param.model_file.c_str())) {
     Color::print_error(
-      StringPrintf("Test set file: %s does not exist.",
+      StringPrintf("Model file: %s does not exist.",
            hyper_param.model_file.c_str())
     );
     bo = false;
@@ -898,8 +943,10 @@ bool Checker::check_prediction_param(HyperParam& hyper_param) {
  /*********************************************************
   *  Set default value                                    *
   *********************************************************/
- if (hyper_param.output_file.empty()) {
-   hyper_param.output_file = hyper_param.test_set_file + ".out";
+ if (hyper_param.res_out) {
+  if (hyper_param.output_file.empty()) {
+    hyper_param.output_file = hyper_param.test_set_file + ".out";
+  }
  }
 
  return true;

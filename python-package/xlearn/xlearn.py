@@ -16,8 +16,12 @@
 import sys
 import os
 import ctypes
+from numpy import ndarray
+from .base import Series, DataFrame 
+import numpy as np 
 from .base import _LIB, XLearnHandle
 from .base import _check_call, c_str
+from .data import DMatrix
 
 class XLearn(object):
     """XLearn is the core interface used by python API."""
@@ -96,6 +100,9 @@ class XLearn(object):
             elif key == 'stop_window':
                 _check_call(_LIB.XLearnSetInt(ctypes.byref(self.handle),
                                               c_str(key), ctypes.c_uint(value)))
+            elif key == 'seed':
+                _check_call(_LIB.XLearnSetInt(ctypes.byref(self.handle),
+                                              c_str(key), ctypes.c_uint(value)))
             else:
                 raise Exception("Invalid key!", key)
 
@@ -112,8 +119,15 @@ class XLearn(object):
         train_path : str
            the path of training data
         """
-        _check_call(_LIB.XLearnSetTrain(ctypes.byref(self.handle), c_str(train_path)))
-
+        if isinstance(train_path, str):
+            _check_call(_LIB.XLearnSetTrain(ctypes.byref(self.handle), c_str(train_path)))
+            _check_call(_LIB.XLearnSetBool(ctypes.byref(self.handle), c_str("from_file"), ctypes.c_bool(True)))
+        elif isinstance(train_path, DMatrix):
+            key = "train"
+            _check_call(_LIB.XLearnSetDMatrix(ctypes.byref(self.handle), c_str(key), ctypes.byref(train_path.handle)))
+            _check_call(_LIB.XLearnSetBool(ctypes.byref(self.handle), c_str("from_file"), ctypes.c_bool(False)))
+        else:
+            raise Exception("Invalid train.Can be test file path or xLearn DMatrix", type(train_path))
 
     def setTest(self, test_path):
         """Set file path of test data.
@@ -123,8 +137,25 @@ class XLearn(object):
         test_path : str
            the path of test data.
         """
-        _check_call(_LIB.XLearnSetTest(ctypes.byref(self.handle), c_str(test_path)))
+        if isinstance(test_path, str):
+            _check_call(_LIB.XLearnSetTest(ctypes.byref(self.handle), c_str(test_path)))
+            _check_call(_LIB.XLearnSetBool(ctypes.byref(self.handle), c_str("from_file"), ctypes.c_bool(True)))
+        elif isinstance(test_path, DMatrix):
+            key = "test"
+            _check_call(_LIB.XLearnSetDMatrix(ctypes.byref(self.handle), c_str(key), ctypes.byref(test_path.handle)))
+            _check_call(_LIB.XLearnSetBool(ctypes.byref(self.handle), c_str("from_file"), ctypes.c_bool(False)))
+        else:
+            raise Exception("Invalid test.Can be test file path or xLearn DMatrix", type(test_path))
 
+    def setPreModel(self, pre_model_path):
+        """ Set file path of pre-trained model.
+
+        Parameters
+        ----------
+        pre_model_path : str
+           the path of pre-trained model.
+        """
+        _check_call(_LIB.XLearnSetPreModel(ctypes.byref(self.handle), c_str(pre_model_path)))
 
     def setValidate(self, val_path):
         """Set file path of validation data.
@@ -134,18 +165,13 @@ class XLearn(object):
         val_path : str
            the path of validation data.
         """
-        _check_call(_LIB.XLearnSetValidate(ctypes.byref(self.handle), c_str(val_path)))
-
-    def setValidateDMatrix(self, val_data):
-        """Set the data matrix for validation set
-
-        Parameters
-        ----------
-        val_data : DMatrix
-            the validation matrix for validation set
-        """
-        _check_call(_LIB.XLearnSetValidateDMatrix(ctypes.byref(self.handle),
-                                                  ctypes.byref(val_data.handle)))
+        if isinstance(val_path, str):
+            _check_call(_LIB.XLearnSetValidate(ctypes.byref(self.handle), c_str(val_path)))
+        elif isinstance(val_path, DMatrix):
+            key = "validate"
+            _check_call(_LIB.XLearnSetDMatrix(ctypes.byref(self.handle), c_str(key), ctypes.byref(val_path.handle)))
+        else:
+            raise Exception("Invalid validation.Can be test file path or xLearn DMatrix", type(val_path))
 
     def setTXTModel(self, model_path):
         """Set the path of TXT model file.
@@ -168,6 +194,12 @@ class XLearn(object):
         key = 'on_disk'
         _check_call(_LIB.XLearnSetBool(ctypes.byref(self.handle),
                                        c_str(key), ctypes.c_bool(True)))
+
+    def setNoBin(self):
+        """Do not generate bin file"""
+        key = 'bin_out'
+        _check_call(_LIB.XLearnSetBool(ctypes.byref(self.handle),
+                                       c_str(key), ctypes.c_bool(False)))
 
     def disableNorm(self):
         """Disable instance-wise normalization"""
@@ -223,16 +255,29 @@ class XLearn(object):
         self._set_Param(param)
         _check_call(_LIB.XLearnCV(ctypes.byref(self.handle)))
 
-    def predict(self, model_path, out_path):
+    def predict(self, model_path, out_path=None):
         """Predict output
 
         Parameters
         ----------
         model_path : str. path of model checkpoint.
-        out_path : str. path of output result.
+        out_path : str, default None. if a path of output result is setted, then will save result to local file,
+        and will not return numpy res.
         """
-        _check_call(_LIB.XLearnPredict(ctypes.byref(self.handle),
-                                       c_str(model_path), c_str(out_path)))
+        if out_path is None:
+            length = ctypes.c_uint64()
+            preds = ctypes.POINTER(ctypes.c_float)()
+            _check_call(_LIB.XLearnPredictForMat(ctypes.byref(self.handle),
+                                                 c_str(model_path),
+                                                 ctypes.byref(length),
+                                                 ctypes.byref(preds)))
+            res = np.zeros(length.value, dtype=np.float32)
+            ctypes.memmove(res.ctypes.data, preds, length.value * res.strides[0])
+            return res
+        else:
+            _check_call(_LIB.XLearnPredictForFile(ctypes.byref(self.handle),
+                                                 c_str(model_path),
+                                                 c_str(out_path)))
 
 def create_linear():
     """
